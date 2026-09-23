@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - job_portal_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      JOB_GREENHOUSE_BOARDS: ${JOB_GREENHOUSE_BOARDS:-}
+      JOB_LEVER_SITES: ${JOB_LEVER_SITES:-}
+      JOB_ASHBY_BOARDS: ${JOB_ASHBY_BOARDS:-}
+      JOB_WORKABLE_ACCOUNTS: ${JOB_WORKABLE_ACCOUNTS:-}
+      JOB_REFRESH_MINUTES: ${JOB_REFRESH_MINUTES:-360}
+      JOB_RETENTION_DAYS: ${JOB_RETENTION_DAYS:-45}
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
+      USAJOBS_API_KEY: ${USAJOBS_API_KEY:-}
+      USAJOBS_USER_AGENT: ${USAJOBS_USER_AGENT:-}
+      JOOBLE_API_KEY: ${JOOBLE_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  job_portal_postgres:

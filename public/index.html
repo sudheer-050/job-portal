@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Job Portal</title>
+    <meta name="description" content="Create an account, tell us the roles you're interested in, upload your resume, and get personalized job recommendations.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #09090b;
+            --bg-card: #16161a;
+            --bg-card-hover: #1c1c21;
+            --accent-brand: #9B8AFB;
+            --accent-brand-hover: #8171E8;
+            --accent-brand-soft: rgba(155, 138, 251, 0.14);
+            --text-normal: #fafafa;
+            --text-muted: #a1a1aa;
+            --text-faint: #71717a;
+            --border-color: #27272a;
+            --border-color-soft: #1f1f23;
+            --glass-weak: rgba(255, 255, 255, 0.05);
+            --accent-green: #4ade80;
+            --accent-green-soft: rgba(74, 222, 128, 0.14);
+            --accent-amber: #fbbf24;
+            --accent-amber-soft: rgba(251, 191, 36, 0.14);
+            --accent-red: #f87171;
+            --font-stack: 'Inter', system-ui, -apple-system, sans-serif;
+            --radius-lg: 18px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; font-family: var(--font-stack); background: var(--bg-main);
+            color: var(--text-normal); min-height: 100vh; -webkit-font-smoothing: antialiased;
+        }
+        a { color: inherit; }
+
+        header {
+            position: sticky; top: 0; z-index: 10;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 28px; border-bottom: 1px solid var(--border-color-soft);
+            background: rgba(9, 9, 11, 0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        }
+        header a.brand { display: flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 800; font-size: 15.5px; letter-spacing: -0.01em; }
+        header a.brand img { width: 22px; height: 22px; border-radius: 6px; }
+        header a.brand .tag { color: var(--text-muted); font-weight: 600; }
+        header a.brand .tag::before { content: '/'; margin: 0 7px; color: var(--border-color); font-weight: 400; }
+        .user-pill { display: none; align-items: center; gap: 10px; }
+        .user-pill .avatar {
+            width: 30px; height: 30px; border-radius: 50%; background: var(--accent-brand);
+            color: #fff; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center;
+        }
+        .user-pill span.name { font-size: 13.5px; font-weight: 600; }
+        #logoutBtn {
+            background: none; border: 1px solid var(--border-color); color: var(--text-muted);
+            border-radius: 999px; padding: 7px 15px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+            font-family: var(--font-stack); transition: border-color 0.15s, color 0.15s;
+        }
+        #logoutBtn:hover { color: var(--text-normal); border-color: var(--accent-brand); }
+
+        .icon { width: 15px; height: 15px; flex-shrink: 0; display: inline-block; vertical-align: -3px; }
+
+        /* ---- Auth ---- */
+        #authView { max-width: 420px; margin: 8vh auto 0; padding: 0 20px; }
+        .auth-header { text-align: center; margin-bottom: 28px; }
+        .auth-header .mark {
+            width: 52px; height: 52px; border-radius: 16px; margin: 0 auto 18px;
+            background: linear-gradient(145deg, var(--accent-brand), var(--accent-brand-hover));
+            display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(155, 138, 251, 0.25);
+        }
+        .auth-header .mark svg { width: 24px; height: 24px; color: #fff; }
+        .auth-header h1 { font-size: 22px; margin: 0 0 8px; letter-spacing: -0.01em; }
+        .auth-header p { color: var(--text-muted); font-size: 14px; margin: 0; line-height: 1.5; }
+
+        .card {
+            background: var(--bg-card); border: 1px solid var(--border-color-soft); border-radius: var(--radius-lg);
+            padding: 24px;
+        }
+        .card + .card { margin-top: 18px; }
+        .card h2 { font-size: 15px; margin: 0 0 4px; font-weight: 700; letter-spacing: -0.005em; }
+        .card p.hint { color: var(--text-faint); font-size: 12.5px; margin: 0 0 18px; line-height: 1.5; }
+
+        label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: 0.03em; }
+        label:first-of-type { margin-top: 0; }
+        input[type="text"], input[type="email"], input[type="password"], input[type="number"], select, textarea {
+            width: 100%; padding: 11px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);
+            background: rgba(255,255,255,0.03); color: var(--text-normal); font-family: var(--font-stack);
+            font-size: 14px; outline: none; transition: border-color 0.15s, background 0.15s;
+        }
+        input::placeholder, textarea::placeholder { color: var(--text-faint); }
+        input:focus, select:focus, textarea:focus { border-color: var(--accent-brand); background: rgba(255,255,255,0.05); }
+        textarea { resize: vertical; min-height: 96px; font-size: 13.5px; line-height: 1.5; }
+        input[type="file"] { font-size: 13px; color: var(--text-muted); }
+
+        .btn {
+            border: none; border-radius: 999px; padding: 10px 18px; font-size: 13.5px; font-weight: 600;
+            cursor: pointer; font-family: var(--font-stack); display: inline-flex; align-items: center; gap: 7px;
+            transition: background 0.15s, transform 0.1s, border-color 0.15s;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: var(--accent-brand); color: #fff; }
+        .btn-primary:hover { background: var(--accent-brand-hover); }
+        .btn-primary:disabled { opacity: 0.5; cursor: default; transform: none; }
+        .btn-primary.full { width: 100%; justify-content: center; padding: 12px; font-size: 14px; }
+        .btn-ghost { background: transparent; color: var(--text-normal); border: 1px solid var(--border-color); }
+        .btn-ghost:hover { border-color: var(--accent-brand); color: var(--accent-brand); }
+        .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+
+        .auth-tabs { display: flex; gap: 4px; background: rgba(255,255,255,0.03); border-radius: 999px; padding: 4px; margin-bottom: 22px; }
+        .auth-tabs button {
+            flex: 1; border: none; background: transparent; color: var(--text-muted); padding: 9px 0;
+            border-radius: 999px; font-family: var(--font-stack); font-size: 13.5px; font-weight: 600; cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .auth-tabs button.active { background: var(--accent-brand); color: #fff; }
+
+        .error-msg, .success-msg {
+            font-size: 13px; margin-top: 12px; display: none; padding: 10px 13px; border-radius: var(--radius-sm);
+            line-height: 1.4;
+        }
+        .error-msg { color: #fecaca; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.25); }
+        .success-msg { color: #bbf7d0; background: var(--accent-green-soft); border: 1px solid rgba(74, 222, 128, 0.25); }
+
+        /* ---- App shell ---- */
+        #appView { max-width: 1080px; margin: 0 auto; padding: 28px 24px 80px; }
+        .page-heading { margin-bottom: 22px; }
+        .page-heading h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+        .page-heading p { color: var(--text-muted); font-size: 13.5px; margin: 0; }
+
+        .app-shell { display: grid; grid-template-columns: 320px 1fr; gap: 22px; align-items: start; }
+        @media (max-width: 860px) { .app-shell { grid-template-columns: 1fr; } }
+        .sidebar { position: sticky; top: 78px; display: flex; flex-direction: column; }
+        @media (max-width: 860px) { .sidebar { position: static; } }
+
+        .role-chip {
+            display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-color); border-radius: 999px; padding: 6px 6px 6px 13px;
+            font-size: 12.5px; margin: 0 6px 6px 0;
+        }
+        .role-chip button {
+            border: none; background: rgba(255,255,255,0.06); color: var(--text-muted); cursor: pointer; width: 18px; height: 18px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; line-height: 1;
+            transition: background 0.15s, color 0.15s;
+        }
+        .role-chip button:hover { background: var(--accent-red); color: #fff; }
+        .role-chip .role-name { font-weight: 600; }
+        .role-chip .role-meta { color: var(--text-muted); }
+        .role-chip .role-meta::before { content: "·"; margin: 0 6px; color: var(--text-faint); }
+        .role-list { display: flex; flex-wrap: wrap; margin-bottom: 2px; }
+        .role-list:empty::after { content: "No roles yet — add one below."; color: var(--text-faint); font-size: 12.5px; }
+
+        .add-role-row { display: flex; gap: 8px; margin-top: 6px; }
+        .add-role-row input { flex: 1; }
+        .add-role-row .btn { flex-shrink: 0; padding: 10px 16px; }
+
+        .pref-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+
+        .resume-status { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-faint); margin-top: 12px; }
+        .resume-status.has-resume { color: var(--accent-green); }
+        .resume-status .icon { width: 14px; height: 14px; }
+        .divider-or { display: flex; align-items: center; gap: 10px; margin: 16px 0; color: var(--text-faint); font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .divider-or::before, .divider-or::after { content: ''; flex: 1; height: 1px; background: var(--border-color); }
+
+        /* ---- Recommendations ---- */
+        .recs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .recs-header h2 { font-size: 16px; margin: 0; font-weight: 700; }
+        .recs-header p.hint { margin: 2px 0 0; }
+        .icon-btn {
+            display: flex; align-items: center; gap: 7px; background: var(--bg-card); border: 1px solid var(--border-color-soft);
+            color: var(--text-muted); border-radius: 999px; padding: 8px 15px; font-size: 12.5px; font-weight: 600;
+            cursor: pointer; font-family: var(--font-stack); transition: border-color 0.15s, color 0.15s;
+        }
+        .icon-btn:hover { border-color: var(--accent-brand); color: var(--accent-brand); }
+        .icon-btn .icon { width: 14px; height: 14px; }
+        .icon-btn.spinning .icon { animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .job-list { display: flex; flex-direction: column; gap: 12px; }
+        .job-card {
+            border: 1px solid var(--border-color-soft); border-radius: var(--radius-md); padding: 18px;
+            background: var(--bg-card); display: flex; gap: 14px; transition: border-color 0.15s, background 0.15s, transform 0.15s;
+        }
+        .job-card:hover { border-color: var(--border-color); background: var(--bg-card-hover); transform: translateY(-1px); }
+        .company-avatar {
+            flex-shrink: 0; width: 42px; height: 42px; border-radius: var(--radius-sm); display: flex; align-items: center;
+            justify-content: center; color: #fff; font-weight: 700; font-size: 15px; letter-spacing: -0.02em;
+        }
+        .job-card-body { flex: 1; min-width: 0; }
+        .job-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 2px; }
+        .job-card h3 { margin: 0; font-size: 14.5px; font-weight: 700; line-height: 1.35; }
+        .job-card .company { color: var(--text-muted); font-size: 13px; margin-bottom: 10px; }
+
+        .match-badge {
+            flex-shrink: 0; display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700;
+            padding: 4px 10px 4px 8px; border-radius: 999px; white-space: nowrap;
+        }
+        .match-badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+        .match-high { background: var(--accent-green-soft); color: var(--accent-green); }
+        .match-high .dot { background: var(--accent-green); }
+        .match-mid { background: var(--accent-amber-soft); color: var(--accent-amber); }
+        .match-mid .dot { background: var(--accent-amber); }
+        .match-low { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+        .match-low .dot { background: var(--text-faint); }
+
+        .job-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
+        .job-meta span { display: inline-flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.035); border: 1px solid var(--border-color-soft); border-radius: 999px; padding: 4px 11px 4px 9px; }
+        .job-meta .icon { width: 12px; height: 12px; color: var(--text-faint); }
+
+        .job-card-footer { display: flex; align-items: center; justify-content: space-between; }
+        .source-tag { font-size: 11px; color: var(--text-faint); text-transform: capitalize; }
+        .match-reasons { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+        .match-reason { font-size: 10.5px; color: var(--text-muted); background: var(--bg-card-hover); border-radius: 999px; padding: 3px 8px; }
+        .source-status { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
+        a.apply-link {
+            display: inline-flex; align-items: center; gap: 6px; background: var(--accent-brand-soft); color: var(--accent-brand);
+            font-size: 12.5px; font-weight: 700; text-decoration: none; padding: 7px 15px; border-radius: 999px;
+            transition: background 0.15s, color 0.15s;
+        }
+        a.apply-link:hover { background: var(--accent-brand); color: #fff; }
+        a.apply-link .icon { width: 12px; height: 12px; }
+
+        .empty-state, .loading-state {
+            text-align: center; color: var(--text-faint); font-size: 13.5px; padding: 56px 20px;
+            border: 1px dashed var(--border-color); border-radius: var(--radius-md); display: flex;
+            flex-direction: column; align-items: center; gap: 10px;
+        }
+        .empty-state .icon, .loading-state .icon { width: 28px; height: 28px; color: var(--border-color); }
+        .loading-state .icon { animation: spin 1s linear infinite; color: var(--accent-brand); }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="/" class="brand">Job<span class="tag">Portal</span></a>
+        <div class="user-pill" id="userPill">
+            <div class="avatar" id="userAvatar"></div>
+            <span class="name" id="welcomeUsername"></span>
+            <button id="logoutBtn">Log out</button>
+        </div>
+    </header>
+
+    <!-- LOGGED OUT -->
+    <div id="authView">
+        <div class="auth-header">
+            <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3a2 2 0 0 1-2-2V2"/><path d="M9 22H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2h-1"/><circle cx="10" cy="15" r="3"/><path d="m18.5 19.5-1.5-1.5"/></svg></div>
+            <h1>Find roles that actually fit you.</h1>
+            <p>Create an account, tell us what you're looking for, and get a ranked, personalized feed of real job postings.</p>
+        </div>
+        <div class="card">
+            <div class="auth-tabs">
+                <button type="button" id="loginTabBtn" class="active">Log in</button>
+                <button type="button" id="signupTabBtn">Sign up</button>
+            </div>
+
+            <form id="loginForm">
+                <label for="loginUsername">Username</label>
+                <input type="text" id="loginUsername" autocomplete="username" required>
+                <label for="loginPassword">Password</label>
+                <input type="password" id="loginPassword" autocomplete="current-password" required>
+                <div class="btn-row"><button type="submit" class="btn btn-primary full">Log in</button></div>
+            </form>
+
+            <form id="signupForm" style="display:none;">
+                <label for="signupUsername">Username</label>
+                <input type="text" id="signupUsername" autocomplete="username" required minlength="3" maxlength="20">
+                <label for="signupEmail">Email</label>
+                <input type="email" id="signupEmail" autocomplete="email" required>
+                <label for="signupPassword">Password</label>
+                <input type="password" id="signupPassword" autocomplete="new-password" required minlength="8">
+                <div class="btn-row"><button type="submit" class="btn btn-primary full">Create account</button></div>
+            </form>
+
+            <div class="error-msg" id="authError"></div>
+        </div>
+    </div>
+
+    <!-- LOGGED IN -->
+    <div id="appView" style="display:none;">
+        <div class="page-heading">
+            <h1>Welcome back, <span id="welcomeUsername2"></span>.</h1>
+            <p>Here's what's out there matching your roles right now.</p>
+        </div>
+
+        <div class="app-shell">
+            <div class="sidebar">
+                <div class="card">
+                    <h2>Roles you're tracking</h2>
+                    <p class="hint">Add as many as you like — recommendations pull from all of them.</p>
+                    <div class="role-list" id="roleList"></div>
+                    <div class="add-role-row">
+                        <input type="text" id="newRoleInput" placeholder="e.g. Machine Learning Engineer">
+                        <button type="button" class="btn btn-primary" id="addRoleBtn">Add</button>
+                    </div>
+                    <div class="pref-grid">
+                        <div>
+                            <label for="newRoleLocation">Location</label>
+                            <input type="text" id="newRoleLocation" placeholder="Austin, TX">
+                        </div>
+                        <div>
+                            <label for="newRoleRemote">Work style</label>
+                            <select id="newRoleRemote">
+                                <option value="any">Any</option>
+                                <option value="remote">Remote</option>
+                                <option value="hybrid">Hybrid</option>
+                                <option value="onsite">On-site</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="newRoleSalaryMin">Minimum salary (USD)</label>
+                            <input type="number" id="newRoleSalaryMin" min="0" max="10000000" step="1000" placeholder="100000">
+                        </div>
+                        <div>
+                            <label for="newRoleSalaryMax">Maximum salary (USD)</label>
+                            <input type="number" id="newRoleSalaryMax" min="0" max="10000000" step="1000" placeholder="180000">
+                        </div>
+                    </div>
+                    <div class="error-msg" id="prefError"></div>
+                </div>
+
+                <div class="card">
+                    <h2>Your resume</h2>
+                    <p class="hint">Optional, but matches get noticeably better with it — only you can ever see it.</p>
+                    <label for="resumeFile">Upload a PDF</label>
+                    <input type="file" id="resumeFile" accept="application/pdf">
+                    <div class="divider-or">or</div>
+                    <label for="resumeText" style="margin-top:0;">Paste resume text</label>
+                    <textarea id="resumeText" placeholder="Paste your resume here"></textarea>
+                    <div class="btn-row"><button type="button" class="btn btn-ghost full" id="saveResumeBtn" style="width:100%; justify-content:center;">Save resume</button></div>
+                    <div class="resume-status" id="resumeStatus"></div>
+                    <div class="error-msg" id="resumeError"></div>
+                </div>
+            </div>
+
+            <div class="main-col">
+                <div class="recs-header">
+                    <div>
+                        <h2>Recommended for you</h2>
+                        <p class="hint">Ranked by how closely each posting matches your resume and roles.</p>
+                        <p class="source-status" id="sourceStatus">Checking job sources…</p>
+                    </div>
+                    <button type="button" class="icon-btn" id="refreshRecsBtn">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+                        Refresh
+                    </button>
+                </div>
+                <div id="recsContainer" class="job-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const authView = document.getElementById('authView');
+        const appView = document.getElementById('appView');
+        const userPill = document.getElementById('userPill');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        const ICON_LOCATION = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>';
+        const ICON_REMOTE = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>';
+        const ICON_SALARY = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>';
+        const ICON_APPLY = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>';
+        const ICON_CHECK = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+        const ICON_EMPTY = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>';
+        const ICON_LOADING = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/></svg>';
+
+        const AVATAR_PALETTE = ['#9B8AFB', '#38bdf8', '#4ade80', '#fbbf24', '#f472b6', '#fb923c', '#a78bfa', '#2dd4bf'];
+        function colorForName(name) {
+            let hash = 0;
+            for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+            return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+        }
+        // Some sources (RemoteOK in particular) return company/title text that's
+        // already HTML-entity-encoded ("Larsen &amp; Toubro") -- decode common
+        // entities first so escaping doesn't double them up into "&amp;amp;".
+        const entityDecoder = document.createElement('textarea');
+        function decodeEntities(s) {
+            entityDecoder.innerHTML = String(s);
+            return entityDecoder.value;
+        }
+        function escapeHtml(s) {
+            return decodeEntities(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+        }
+
+        async function api(path, opts = {}) {
+            const res = await fetch(path, { credentials: 'same-origin', ...opts });
+            let data = {};
+            try { data = await res.json(); } catch (e) {}
+            if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+            return data;
+        }
+
+        /* ---- Auth ---- */
+        const loginTabBtn = document.getElementById('loginTabBtn');
+        const signupTabBtn = document.getElementById('signupTabBtn');
+        const loginForm = document.getElementById('loginForm');
+        const signupForm = document.getElementById('signupForm');
+        const authError = document.getElementById('authError');
+
+        function showAuthError(msg) {
+            authError.textContent = msg;
+            authError.style.display = 'block';
+        }
+
+        loginTabBtn.addEventListener('click', () => {
+            loginTabBtn.classList.add('active'); signupTabBtn.classList.remove('active');
+            loginForm.style.display = ''; signupForm.style.display = 'none';
+            authError.style.display = 'none';
+        });
+        signupTabBtn.addEventListener('click', () => {
+            signupTabBtn.classList.add('active'); loginTabBtn.classList.remove('active');
+            signupForm.style.display = ''; loginForm.style.display = 'none';
+            authError.style.display = 'none';
+        });
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            authError.style.display = 'none';
+            try {
+                const data = await api('/api/jobs/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('loginUsername').value.trim(),
+                        password: document.getElementById('loginPassword').value,
+                    }),
+                });
+                enterApp(data.username);
+            } catch (err) { showAuthError(err.message); }
+        });
+
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            authError.style.display = 'none';
+            try {
+                const data = await api('/api/jobs/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('signupUsername').value.trim(),
+                        email: document.getElementById('signupEmail').value.trim(),
+                        password: document.getElementById('signupPassword').value,
+                    }),
+                });
+                enterApp(data.username);
+            } catch (err) { showAuthError(err.message); }
+        });
+
+        logoutBtn.addEventListener('click', async () => {
+            try { await api('/api/jobs/auth/logout', { method: 'POST' }); } catch (e) {}
+            location.reload();
+        });
+
+        function enterApp(username) {
+            authView.style.display = 'none';
+            appView.style.display = '';
+            userPill.style.display = 'flex';
+            document.getElementById('welcomeUsername').textContent = username;
+            document.getElementById('welcomeUsername2').textContent = username;
+            const avatar = document.getElementById('userAvatar');
+            avatar.textContent = username.charAt(0).toUpperCase();
+            avatar.style.background = colorForName(username);
+            loadPreferences();
+            loadResumeStatus();
+            loadRecommendations();
+            loadSourceStatus();
+        }
+
+        (async function checkSession() {
+            try {
+                const data = await api('/api/jobs/auth/me');
+                enterApp(data.username);
+            } catch (e) { /* not logged in -- stay on auth view */ }
+        })();
+
+        /* ---- Preferences ---- */
+        const roleList = document.getElementById('roleList');
+        const prefError = document.getElementById('prefError');
+
+        function renderRoles(preferences) {
+            roleList.innerHTML = '';
+            preferences.forEach(p => {
+                const chip = document.createElement('div');
+                chip.className = 'role-chip';
+                const salary = p.salaryMin || p.salaryMax
+                    ? `$${Math.round((p.salaryMin || 0) / 1000)}k${p.salaryMax ? `–$${Math.round(p.salaryMax / 1000)}k` : '+'}`
+                    : null;
+                const meta = [p.location, (p.remotePref && p.remotePref !== 'any') ? p.remotePref : null, salary].filter(Boolean);
+                chip.innerHTML = `<span><span class="role-name">${escapeHtml(p.role)}</span>${
+                    meta.length ? `<span class="role-meta">${meta.map(b => escapeHtml(b)).join(' · ')}</span>` : ''
+                }</span>`;
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.textContent = '×';
+                removeBtn.title = 'Remove';
+                removeBtn.addEventListener('click', async () => {
+                    try {
+                        await api(`/api/jobs/preferences/${p.id}`, { method: 'DELETE' });
+                        loadPreferences();
+                        loadRecommendations();
+                    } catch (err) { prefError.textContent = err.message; prefError.style.display = 'block'; }
+                });
+                chip.appendChild(removeBtn);
+                roleList.appendChild(chip);
+            });
+        }
+
+        async function loadPreferences() {
+            try {
+                const data = await api('/api/jobs/preferences');
+                renderRoles(data.preferences || []);
+            } catch (err) { /* quietly ignore -- not fatal to the page */ }
+        }
+
+        document.getElementById('addRoleBtn').addEventListener('click', async () => {
+            prefError.style.display = 'none';
+            const roleInput = document.getElementById('newRoleInput');
+            const role = roleInput.value.trim();
+            if (!role) { prefError.textContent = 'Enter a role first.'; prefError.style.display = 'block'; return; }
+            try {
+                await api('/api/jobs/preferences', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        role,
+                        location: document.getElementById('newRoleLocation').value.trim(),
+                        remotePref: document.getElementById('newRoleRemote').value,
+                        salaryMin: document.getElementById('newRoleSalaryMin').value,
+                        salaryMax: document.getElementById('newRoleSalaryMax').value,
+                    }),
+                });
+                roleInput.value = '';
+                document.getElementById('newRoleLocation').value = '';
+                document.getElementById('newRoleSalaryMin').value = '';
+                document.getElementById('newRoleSalaryMax').value = '';
+                loadPreferences();
+                loadRecommendations();
+            } catch (err) { prefError.textContent = err.message; prefError.style.display = 'block'; }
+        });
+        document.getElementById('newRoleInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addRoleBtn').click(); }
+        });
+
+        /* ---- Resume ---- */
+        const resumeStatus = document.getElementById('resumeStatus');
+        const resumeError = document.getElementById('resumeError');
+
+        async function loadResumeStatus() {
+            try {
+                const data = await api('/api/jobs/resume');
+                if (data.resume) {
+                    resumeStatus.innerHTML = `${ICON_CHECK}<span>Resume on file${data.resume.originalFilename ? ' (' + escapeHtml(data.resume.originalFilename) + ')' : ''} — ${data.resume.length.toLocaleString()} characters</span>`;
+                    resumeStatus.classList.add('has-resume');
+                } else {
+                    resumeStatus.innerHTML = '<span>No resume uploaded yet.</span>';
+                    resumeStatus.classList.remove('has-resume');
+                }
+            } catch (err) { /* ignore */ }
+        }
+
+        document.getElementById('saveResumeBtn').addEventListener('click', async () => {
+            resumeError.style.display = 'none';
+            const fileInput = document.getElementById('resumeFile');
+            const textValue = document.getElementById('resumeText').value.trim();
+            try {
+                if (fileInput.files.length) {
+                    const formData = new FormData();
+                    formData.append('resume', fileInput.files[0]);
+                    await api('/api/jobs/resume', { method: 'POST', body: formData });
+                } else if (textValue) {
+                    await api('/api/jobs/resume', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ resumeText: textValue }),
+                    });
+                } else {
+                    resumeError.textContent = 'Upload a PDF or paste your resume text first.';
+                    resumeError.style.display = 'block';
+                    return;
+                }
+                fileInput.value = '';
+                document.getElementById('resumeText').value = '';
+                loadResumeStatus();
+                loadRecommendations();
+            } catch (err) { resumeError.textContent = err.message; resumeError.style.display = 'block'; }
+        });
+
+        /* ---- Recommendations ---- */
+        const recsContainer = document.getElementById('recsContainer');
+        const refreshBtn = document.getElementById('refreshRecsBtn');
+        const sourceStatus = document.getElementById('sourceStatus');
+
+        async function loadSourceStatus() {
+            try {
+                const data = await api('/api/jobs/status');
+                const total = (data.sources || []).reduce((sum, source) => sum + Number(source.count || 0), 0);
+                const sourceCount = (data.sources || []).length;
+                const boardText = data.configuredBoards ? ` · ${data.configuredBoards} employer boards configured` : '';
+                sourceStatus.textContent = `${total.toLocaleString()} active jobs from ${sourceCount} sources${boardText}`;
+            } catch (err) {
+                sourceStatus.textContent = 'Job source status unavailable';
+            }
+        }
+
+        function matchTier(score) {
+            if (score >= 65) return 'match-high';
+            if (score >= 35) return 'match-mid';
+            return 'match-low';
+        }
+
+        function renderRecommendations(recs, message) {
+            if (!recs || !recs.length) {
+                recsContainer.innerHTML = `<div class="empty-state">${ICON_EMPTY}<span>${escapeHtml(message || 'No matches yet — add a role to get started.')}</span></div>`;
+                return;
+            }
+            recsContainer.innerHTML = recs.map(job => {
+                const salary = (job.salaryMin || job.salaryMax)
+                    ? `$${Math.round((job.salaryMin || 0) / 1000)}k${job.salaryMax ? '–$' + Math.round(job.salaryMax / 1000) + 'k' : '+'}`
+                    : null;
+                const alreadySaysRemote = /remote/i.test(job.location || '');
+                const metaItems = [
+                    job.location ? { icon: ICON_LOCATION, text: job.location } : null,
+                    (job.remote && !alreadySaysRemote) ? { icon: ICON_REMOTE, text: 'Remote' } : null,
+                    salary ? { icon: ICON_SALARY, text: salary } : null,
+                ].filter(Boolean);
+                const initial = (job.company || '?').charAt(0).toUpperCase();
+                const posted = job.postedAt ? new Date(job.postedAt) : null;
+                const postedText = posted && !Number.isNaN(posted.getTime())
+                    ? `Posted ${posted.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                    : null;
+                const reasons = (job.matchReasons || []).slice(0, 3);
+                return `
+                    <div class="job-card">
+                        <div class="company-avatar" style="background:${colorForName(job.company || job.title || 'x')}">${escapeHtml(initial)}</div>
+                        <div class="job-card-body">
+                            <div class="job-card-top">
+                                <div>
+                                    <h3>${escapeHtml(job.title || '')}</h3>
+                                    <div class="company">${escapeHtml(job.company || 'Company not listed')}</div>
+                                </div>
+                                <span class="match-badge ${matchTier(job.matchScore)}"><span class="dot"></span>${job.matchScore}% match</span>
+                            </div>
+                            <div class="job-meta">${metaItems.map(m => `<span>${m.icon}${escapeHtml(m.text)}</span>`).join('')}</div>
+                            ${reasons.length ? `<div class="match-reasons">${reasons.map(reason => `<span class="match-reason">${escapeHtml(reason)}</span>`).join('')}</div>` : ''}
+                            <div class="job-card-footer">
+                                <span class="source-tag">via ${escapeHtml(job.source || '')}${postedText ? ` · ${escapeHtml(postedText)}` : ''}</span>
+                                <a class="apply-link" href="${escapeHtml(job.applyUrl || '#')}" target="_blank" rel="noopener noreferrer">Apply${ICON_APPLY}</a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function loadRecommendations() {
+            recsContainer.innerHTML = `<div class="loading-state">${ICON_LOADING}<span>Finding your best matches…</span></div>`;
+            refreshBtn.classList.add('spinning');
+            try {
+                const data = await api('/api/jobs/recommendations');
+                renderRecommendations(data.recommendations, data.message);
+            } catch (err) {
+                recsContainer.innerHTML = `<div class="empty-state">${ICON_EMPTY}<span>${escapeHtml(err.message)}</span></div>`;
+            } finally {
+                refreshBtn.classList.remove('spinning');
+                loadSourceStatus();
+            }
+        }
+
+        refreshBtn.addEventListener('click', loadRecommendations);
+    </script>
+</body>
+</html>
