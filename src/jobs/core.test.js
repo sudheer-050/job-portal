@@ -26,6 +26,7 @@ test('ranking favors the requested title and returns explanations', () => {
     assert.equal(ranked.length, 1);
     assert.equal(ranked[0].id, exact.id);
     assert.ok(ranked[0].matchReasons.length >= 2);
+    assert.equal(ranked[0].matchCategory, 'full');
 });
 
 test('selected locations exclude otherwise relevant jobs in other cities', () => {
@@ -74,4 +75,21 @@ test('experience, education, employment type, and sponsorship affect ranking', (
     assert.equal(ranked[0].id, matching.id);
     assert.ok(ranked[0].matchScore > ranked[1].matchScore);
     assert.ok(ranked[0].matchReasons.includes('Employment type matched'));
+    assert.equal(ranked[0].matchCategory, 'full');
+    assert.equal(ranked[1].matchCategory, 'recommended');
+    assert.ok(ranked[1].preferenceMismatches.includes('Visa sponsorship is unavailable'));
+});
+
+test('unverified requested criteria are shown as recommended alternatives', () => {
+    const job = normalizeJob({ source: 'lever', id: 'unknowns', title: 'Solutions Engineer', location: 'Chicago', applyUrl: 'https://example.com/unknowns' });
+    const [ranked] = rankJobs([{
+        role: 'Solutions Engineer', location: 'Chicago', remote_pref: 'any', salary_min: 100000,
+        experience_years: 3, education_level: 'bachelor', employment_type: 'full_time', sponsorship: 'required',
+    }], '', [job]);
+    assert.equal(ranked.matchCategory, 'recommended');
+    assert.ok(ranked.preferenceMismatches.includes('Salary is not listed'));
+    assert.ok(ranked.preferenceMismatches.includes('Experience requirement is not listed'));
+    assert.ok(ranked.preferenceMismatches.includes('Education requirement is not listed'));
+    assert.ok(ranked.preferenceMismatches.includes('Employment type is not listed'));
+    assert.ok(ranked.preferenceMismatches.includes('Visa sponsorship is not confirmed'));
 });

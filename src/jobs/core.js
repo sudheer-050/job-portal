@@ -179,7 +179,10 @@ function scoreJob(preference, resumeText, job) {
         else if (salaryMax && jobSalaryMin > salaryMax) salaryFit = 0.85;
         else salaryFit = 1;
     }
-    const userExperience = Number(preference.experience_years ?? preference.experienceYears);
+    const rawUserExperience = preference.experience_years ?? preference.experienceYears;
+    const userExperience = rawUserExperience === null || rawUserExperience === undefined || rawUserExperience === ''
+        ? null
+        : Number(rawUserExperience);
     const requiredExperience = detectMinimumExperience(job.description);
     const experienceFit = !Number.isFinite(userExperience) || requiredExperience === null
         ? 0.6
@@ -214,9 +217,37 @@ function scoreJob(preference, resumeText, job) {
     if (wantedEmployment !== 'any' && employmentFit === 1) reasons.push('Employment type matched');
     if (sponsorshipPreference === 'required' && sponsorshipStatus === 'available') reasons.push('Visa sponsorship mentioned');
     if (freshness >= 0.8) reasons.push('Recently posted');
+    const preferenceMismatches = [];
+    if (Math.max(roleTitle, roleBody) < 0.5) preferenceMismatches.push(`Only a partial match for ${preference.role}`);
+    if (preference.location && place < 0.5) preferenceMismatches.push(`Outside ${preference.location}`);
+    if (wantedWorkplace !== 'any' && workStyle !== 1) {
+        preferenceMismatches.push(`Work style is ${job.workplaceType}; you selected ${wantedWorkplace}`);
+    }
+    if (salaryMin || salaryMax) {
+        if (!jobSalaryMin && !jobSalaryMax) preferenceMismatches.push('Salary is not listed');
+        else if (salaryFit < 1) preferenceMismatches.push('Salary is outside your selected range');
+    }
+    if (Number.isFinite(userExperience)) {
+        if (requiredExperience === null) preferenceMismatches.push('Experience requirement is not listed');
+        else if (userExperience < requiredExperience) preferenceMismatches.push(`Requires ${requiredExperience}+ years; your profile has ${userExperience}`);
+    }
+    if (userEducation !== 'any') {
+        if (!requiredEducation) preferenceMismatches.push('Education requirement is not listed');
+        else if (educationFit !== 1) preferenceMismatches.push(`Requires ${requiredEducation.replace('_', ' ')}`);
+    }
+    if (wantedEmployment !== 'any') {
+        if (!actualEmployment) preferenceMismatches.push('Employment type is not listed');
+        else if (employmentFit !== 1) preferenceMismatches.push(`Employment type is ${actualEmployment.replace('_', ' ')}`);
+    }
+    if (sponsorshipPreference === 'required') {
+        if (sponsorshipStatus === 'unknown') preferenceMismatches.push('Visa sponsorship is not confirmed');
+        else if (sponsorshipStatus === 'unavailable') preferenceMismatches.push('Visa sponsorship is unavailable');
+    }
+    if (skillTokens.size && skillOverlap < 0.5) preferenceMismatches.push('Fewer than half of your key skills are mentioned');
     return {
         score: Math.max(0, Math.min(100, Math.round(weighted * 100))), reasons,
         roleRelevance: Math.max(roleTitle, roleBody), requiredExperience, requiredEducation,
+        isFullMatch: preferenceMismatches.length === 0, preferenceMismatches,
     };
 }
 
@@ -234,13 +265,19 @@ function rankJobs(preferences, resumeText, jobs, limit = 50) {
             const existing = bestByCanonical.get(key);
             const candidate = {
                 ...job, matchScore: result.score, matchReasons: result.reasons, matchedRole: preference.role,
+                matchCategory: result.isFullMatch ? 'full' : 'recommended',
+                preferenceMismatches: result.preferenceMismatches,
                 matchDetails: { requiredExperience: result.requiredExperience, requiredEducation: result.requiredEducation },
             };
-            if (!existing || candidate.matchScore > existing.matchScore) bestByCanonical.set(key, candidate);
+            if (!existing || (candidate.matchCategory === 'full' && existing.matchCategory !== 'full') ||
+                (candidate.matchCategory === existing.matchCategory && candidate.matchScore > existing.matchScore)) {
+                bestByCanonical.set(key, candidate);
+            }
         }
     }
     return [...bestByCanonical.values()]
-        .sort((a, b) => b.matchScore - a.matchScore || new Date(b.postedAt || 0) - new Date(a.postedAt || 0))
+        .sort((a, b) => (a.matchCategory === b.matchCategory ? 0 : a.matchCategory === 'full' ? -1 : 1) ||
+            b.matchScore - a.matchScore || new Date(b.postedAt || 0) - new Date(a.postedAt || 0))
         .slice(0, limit);
 }
 

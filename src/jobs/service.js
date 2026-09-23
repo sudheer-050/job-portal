@@ -237,6 +237,7 @@ function createJobService({ pool, env = process.env, logger = console } = {}) {
             salaryMin: job.salaryMin, salaryMax: job.salaryMax, workplaceType: job.workplaceType,
             remote: job.remote, applyUrl: job.applyUrl, postedAt: job.postedAt,
             matchScore: job.matchScore, matchReasons: job.matchReasons, matchedRole: job.matchedRole,
+            matchCategory: job.matchCategory, preferenceMismatches: job.preferenceMismatches,
             matchDetails: job.matchDetails,
         }));
     }

@@ -196,6 +196,11 @@
         @keyframes spin { to { transform: rotate(360deg); } }
 
         .job-list { display: flex; flex-direction: column; gap: 12px; }
+        .recommendation-group + .recommendation-group { margin-top: 18px; }
+        .recommendation-group-header { margin: 0 0 10px; }
+        .recommendation-group-header h3 { margin: 0; font-size: 14px; }
+        .recommendation-group-header p { margin: 4px 0 0; color: var(--text-faint); font-size: 12px; line-height: 1.45; }
+        .recommendation-count { color: var(--text-faint); font-weight: 500; }
         .job-card {
             border: 1px solid var(--border-color-soft); border-radius: var(--radius-md); padding: 18px;
             background: var(--bg-card); display: flex; gap: 14px; transition: border-color 0.15s, background 0.15s, transform 0.15s;
@@ -230,6 +235,8 @@
         .source-tag { font-size: 11px; color: var(--text-faint); text-transform: capitalize; }
         .match-reasons { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
         .match-reason { font-size: 10.5px; color: var(--text-muted); background: var(--bg-card-hover); border-radius: 999px; padding: 3px 8px; }
+        .preference-gaps { margin-top: 8px; }
+        .preference-gaps .match-reason { color: var(--accent-amber); background: var(--accent-amber-soft); }
         .source-status { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
         a.apply-link {
             display: inline-flex; align-items: center; gap: 6px; background: var(--accent-brand-soft); color: var(--accent-brand);
@@ -387,8 +394,8 @@
             <div class="main-col">
                 <div class="recs-header">
                     <div>
-                        <h2>Recommended for you</h2>
-                        <p class="hint">Ranked by how closely each posting matches your resume and roles.</p>
+                        <h2>Your job matches</h2>
+                        <p class="hint">Full matches are separated from relevant jobs with preference gaps.</p>
                         <p class="source-status" id="sourceStatus">Checking job sources…</p>
                     </div>
                     <button type="button" class="icon-btn" id="refreshRecsBtn">
@@ -705,7 +712,7 @@
                 recsContainer.innerHTML = `<div class="empty-state">${ICON_EMPTY}<span>${escapeHtml(message || 'No matches yet — add a role to get started.')}</span></div>`;
                 return;
             }
-            recsContainer.innerHTML = recs.map(job => {
+            function renderJob(job) {
                 const salary = (job.salaryMin || job.salaryMax)
                     ? `$${Math.round((job.salaryMin || 0) / 1000)}k${job.salaryMax ? '–$' + Math.round(job.salaryMax / 1000) + 'k' : '+'}`
                     : null;
@@ -721,6 +728,7 @@
                     ? `Posted ${posted.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
                     : null;
                 const reasons = (job.matchReasons || []).slice(0, 3);
+                const gaps = (job.preferenceMismatches || []).slice(0, 4);
                 return `
                     <div class="job-card">
                         <div class="company-avatar" style="background:${colorForName(job.company || job.title || 'x')}">${escapeHtml(initial)}</div>
@@ -730,10 +738,11 @@
                                     <h3>${escapeHtml(job.title || '')}</h3>
                                     <div class="company">${escapeHtml(job.company || 'Company not listed')}</div>
                                 </div>
-                                <span class="match-badge ${matchTier(job.matchScore)}"><span class="dot"></span>${job.matchScore}% match</span>
+                                <span class="match-badge ${matchTier(job.matchScore)}"><span class="dot"></span>${job.matchCategory === 'full' ? 'Full match' : 'Recommended'} · ${job.matchScore}%</span>
                             </div>
                             <div class="job-meta">${metaItems.map(m => `<span>${m.icon}${escapeHtml(m.text)}</span>`).join('')}</div>
                             ${reasons.length ? `<div class="match-reasons">${reasons.map(reason => `<span class="match-reason">${escapeHtml(reason)}</span>`).join('')}</div>` : ''}
+                            ${gaps.length ? `<div class="match-reasons preference-gaps">${gaps.map(gap => `<span class="match-reason">${escapeHtml(gap)}</span>`).join('')}</div>` : ''}
                             <div class="job-card-footer">
                                 <span class="source-tag">via ${escapeHtml(job.source || '')}${postedText ? ` · ${escapeHtml(postedText)}` : ''}</span>
                                 <a class="apply-link" href="${escapeHtml(job.applyUrl || '#')}" target="_blank" rel="noopener noreferrer">Apply${ICON_APPLY}</a>
@@ -741,7 +750,17 @@
                         </div>
                     </div>
                 `;
-            }).join('');
+            }
+            const fullMatches = recs.filter(job => job.matchCategory === 'full');
+            const alternatives = recs.filter(job => job.matchCategory !== 'full');
+            const groups = [];
+            if (fullMatches.length) {
+                groups.push(`<section class="recommendation-group"><div class="recommendation-group-header"><h3>Matches all preferences <span class="recommendation-count">(${fullMatches.length})</span></h3><p>Every preference that could be checked matches your profile.</p></div><div class="job-list">${fullMatches.map(renderJob).join('')}</div></section>`);
+            }
+            if (alternatives.length) {
+                groups.push(`<section class="recommendation-group"><div class="recommendation-group-header"><h3>Recommended alternatives <span class="recommendation-count">(${alternatives.length})</span></h3><p>Relevant roles with missing or different preferences. Each gap is shown in amber.</p></div><div class="job-list">${alternatives.map(renderJob).join('')}</div></section>`);
+            }
+            recsContainer.innerHTML = groups.join('');
         }
 
         async function loadRecommendations() {
