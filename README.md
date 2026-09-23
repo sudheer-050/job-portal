@@ -8,7 +8,9 @@ resume.
 ## Features
 
 - Separate user accounts and private PDF/text résumé storage
-- Multiple tracked roles with location, remote/hybrid/on-site, and salary filters
+- Independent lists for desired roles and preferred locations
+- Personal expectations for work style, salary range, education, experience,
+  employment type, visa sponsorship, and key skills
 - Shared scheduled ingestion instead of repeating provider calls per user
 - Direct Greenhouse, Lever, Ashby, and Workable employer-board adapters
 - RemoteOK, Remotive, Arbeitnow, Jobicy, Himalayas, The Muse, Adzuna, USAJOBS,
@@ -37,6 +39,15 @@ Provider documentation and attribution are recorded in
 Keyless sources work without provider credentials. Employer ATS sources remain
 disabled until their board lists are configured. Indeed and ZipRecruiter are not
 enabled without approved partner/API access.
+
+### How matching works
+
+Roles and locations are stored independently, so adding a city never creates or
+duplicates a role. The ranking engine evaluates every selected role/location
+combination and also considers work style, salary overlap, stated experience and
+education requirements, employment type, sponsorship language, key skills,
+resume overlap, and posting freshness. Missing job data is treated neutrally
+rather than as a confirmed match.
 
 ## Development
 

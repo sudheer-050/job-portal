@@ -119,31 +119,105 @@ function locationScore(preference, job) {
     return intersectionRatio(wantedParts, tokens(actual));
 }
 
+const EDUCATION_RANK = { any: 0, high_school: 1, associate: 2, bachelor: 3, master: 4, doctorate: 5 };
+
+function detectEducationRequirement(text) {
+    const value = normalizeQuery(text);
+    const found = [];
+    if (/high school|ged/.test(value)) found.push('high_school');
+    if (/associate(?:'s)? degree/.test(value)) found.push('associate');
+    if (/bachelor(?:'s)? degree|\bb\.s\.?\b|\bb\.a\.?\b/.test(value)) found.push('bachelor');
+    if (/master(?:'s)? degree|\bm\.s\.?\b|\bm\.a\.?\b|\bmba\b/.test(value)) found.push('master');
+    if (/doctorate|doctoral|\bph\.?d\.?\b/.test(value)) found.push('doctorate');
+    return found.sort((a, b) => EDUCATION_RANK[a] - EDUCATION_RANK[b])[0] || null;
+}
+
+function detectMinimumExperience(text) {
+    const values = [];
+    const pattern = /(?:at least|min(?:imum)?(?: of)?|requires?)?\s*(\d{1,2})(?:\+|\s*(?:-|to)\s*\d{1,2})?\s+(?:years?|yrs?)\b/gi;
+    for (const match of String(text || '').matchAll(pattern)) values.push(Number(match[1]));
+    return values.length ? Math.min(...values) : null;
+}
+
+function detectEmploymentType(job) {
+    const value = normalizeQuery(`${job.metadata?.employmentType || ''} ${job.metadata?.commitment || ''} ${job.title || ''}`);
+    if (/intern/.test(value)) return 'internship';
+    if (/contract|contractor|temporary|freelance/.test(value)) return 'contract';
+    if (/part.?time/.test(value)) return 'part_time';
+    if (/full.?time/.test(value)) return 'full_time';
+    return null;
+}
+
+function detectSponsorship(text) {
+    const value = normalizeQuery(text);
+    if (/no (?:visa )?sponsorship|without (?:current or future )?sponsorship|unable to sponsor|cannot sponsor|not sponsor/.test(value)) return 'unavailable';
+    if (/visa sponsorship (?:is )?(?:available|provided)|will sponsor|sponsorship available/.test(value)) return 'available';
+    return 'unknown';
+}
+
 function scoreJob(preference, resumeText, job) {
     const roleTokens = tokens(preference.role);
     const titleTokens = tokens(job.title);
     const bodyTokens = tokens(`${job.title} ${job.description || ''}`);
     const resumeTokens = tokens(resumeText);
+    const skillTokens = tokens(preference.skills);
     const roleTitle = intersectionRatio(roleTokens, titleTokens);
     const roleBody = intersectionRatio(roleTokens, bodyTokens);
     const resumeOverlap = resumeTokens.size ? intersectionRatio(resumeTokens, bodyTokens) : roleBody;
+    const skillOverlap = skillTokens.size ? intersectionRatio(skillTokens, bodyTokens) : 0.6;
     const place = locationScore(preference, job);
     const wantedWorkplace = normalizeQuery(preference.remote_pref || preference.remotePref || 'any');
     const workStyle = wantedWorkplace === 'any' ? 1 : (wantedWorkplace === job.workplaceType ? 1 : 0);
     const salaryMin = toInteger(preference.salary_min ?? preference.salaryMin);
-    const salaryFit = !salaryMin || !job.salaryMax ? 0.6 : (job.salaryMax >= salaryMin ? 1 : 0);
+    const salaryMax = toInteger(preference.salary_max ?? preference.salaryMax);
+    const jobSalaryMin = job.salaryMin || job.salaryMax;
+    const jobSalaryMax = job.salaryMax || job.salaryMin;
+    let salaryFit = 1;
+    if (salaryMin || salaryMax) {
+        if (!jobSalaryMin && !jobSalaryMax) salaryFit = 0.6;
+        else if (salaryMin && jobSalaryMax < salaryMin) salaryFit = 0;
+        else if (salaryMax && jobSalaryMin > salaryMax) salaryFit = 0.85;
+        else salaryFit = 1;
+    }
+    const userExperience = Number(preference.experience_years ?? preference.experienceYears);
+    const requiredExperience = detectMinimumExperience(job.description);
+    const experienceFit = !Number.isFinite(userExperience) || requiredExperience === null
+        ? 0.6
+        : (userExperience >= requiredExperience ? 1 : Math.max(0, userExperience / requiredExperience));
+    const userEducation = preference.education_level || preference.educationLevel || 'any';
+    const requiredEducation = detectEducationRequirement(job.description);
+    const educationFit = userEducation === 'any' || !requiredEducation
+        ? (userEducation === 'any' ? 1 : 0.6)
+        : (EDUCATION_RANK[userEducation] >= EDUCATION_RANK[requiredEducation] ? 1 : 0);
+    const wantedEmployment = preference.employment_type || preference.employmentType || 'any';
+    const actualEmployment = detectEmploymentType(job);
+    const employmentFit = wantedEmployment === 'any' ? 1 : (!actualEmployment ? 0.6 : (actualEmployment === wantedEmployment ? 1 : 0));
+    const sponsorshipPreference = preference.sponsorship || 'any';
+    const sponsorshipStatus = detectSponsorship(job.description);
+    const sponsorshipFit = sponsorshipPreference !== 'required' ? 1 :
+        (sponsorshipStatus === 'available' ? 1 : sponsorshipStatus === 'unavailable' ? 0 : 0.6);
     const ageDays = job.postedAt ? Math.max(0, (Date.now() - new Date(job.postedAt).getTime()) / 86400000) : 30;
     const freshness = Math.max(0, 1 - (ageDays / 90));
-    const weighted = (roleTitle * 0.48) + (roleBody * 0.12) + (resumeOverlap * 0.18) +
-        (place * 0.08) + (workStyle * 0.06) + (salaryFit * 0.03) + (freshness * 0.05);
+    const weighted = (roleTitle * 0.38) + (roleBody * 0.08) + (resumeOverlap * 0.08) + (skillOverlap * 0.06) +
+        (place * 0.08) + (workStyle * 0.07) + (salaryFit * 0.06) + (experienceFit * 0.06) +
+        (educationFit * 0.04) + (employmentFit * 0.03) + (sponsorshipFit * 0.02) + (freshness * 0.04);
     const reasons = [];
     if (roleTitle >= 0.66) reasons.push(`Strong title match for ${preference.role}`);
     else if (roleBody >= 0.5) reasons.push(`Relevant to ${preference.role}`);
     if (resumeText && resumeOverlap >= 0.08) reasons.push('Matches skills in your resume');
+    if (skillTokens.size && skillOverlap >= 0.5) reasons.push('Key skills matched');
     if (wantedWorkplace !== 'any' && workStyle === 1) reasons.push(`${job.workplaceType[0].toUpperCase()}${job.workplaceType.slice(1)} preference matched`);
     if (preference.location && place >= 0.5) reasons.push('Location preference matched');
+    if ((salaryMin || salaryMax) && salaryFit === 1) reasons.push('Salary range matched');
+    if (requiredExperience !== null && Number.isFinite(userExperience) && userExperience >= requiredExperience) reasons.push(`Meets ${requiredExperience}+ years experience`);
+    if (requiredEducation && educationFit === 1) reasons.push(`Education requirement matched`);
+    if (wantedEmployment !== 'any' && employmentFit === 1) reasons.push('Employment type matched');
+    if (sponsorshipPreference === 'required' && sponsorshipStatus === 'available') reasons.push('Visa sponsorship mentioned');
     if (freshness >= 0.8) reasons.push('Recently posted');
-    return { score: Math.max(0, Math.min(100, Math.round(weighted * 100))), reasons, roleRelevance: Math.max(roleTitle, roleBody) };
+    return {
+        score: Math.max(0, Math.min(100, Math.round(weighted * 100))), reasons,
+        roleRelevance: Math.max(roleTitle, roleBody), requiredExperience, requiredEducation,
+    };
 }
 
 function rankJobs(preferences, resumeText, jobs, limit = 50) {
@@ -154,7 +228,10 @@ function rankJobs(preferences, resumeText, jobs, limit = 50) {
             if (result.roleRelevance < 0.25) continue;
             const key = job.canonicalKey || canonicalizeUrl(job.applyUrl) || stableHash(`${job.company}|${job.title}|${job.location}`);
             const existing = bestByCanonical.get(key);
-            const candidate = { ...job, matchScore: result.score, matchReasons: result.reasons, matchedRole: preference.role };
+            const candidate = {
+                ...job, matchScore: result.score, matchReasons: result.reasons, matchedRole: preference.role,
+                matchDetails: { requiredExperience: result.requiredExperience, requiredEducation: result.requiredEducation },
+            };
             if (!existing || candidate.matchScore > existing.matchScore) bestByCanonical.set(key, candidate);
         }
     }
@@ -163,4 +240,8 @@ function rankJobs(preferences, resumeText, jobs, limit = 50) {
         .slice(0, limit);
 }
 
-module.exports = { canonicalizeUrl, cleanText, normalizeJob, normalizeQuery, parseAnnualSalary, rankJobs, scoreJob, tokens };
+module.exports = {
+    canonicalizeUrl, cleanText, detectEducationRequirement, detectEmploymentType,
+    detectMinimumExperience, detectSponsorship, normalizeJob, normalizeQuery,
+    parseAnnualSalary, rankJobs, scoreJob, tokens,
+};

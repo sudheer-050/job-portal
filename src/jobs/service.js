@@ -215,6 +215,7 @@ function createJobService({ pool, env = process.env, logger = console } = {}) {
             salaryMin: row.salary_min, salaryMax: row.salary_max, workplaceType: row.workplace_type,
             remote: row.workplace_type === 'remote', description: row.description, applyUrl: row.apply_url,
             canonicalKey: row.canonical_key, postedAt: row.posted_at, lastSeenAt: row.last_seen_at,
+            metadata: row.metadata || {},
         };
     }
 
@@ -236,6 +237,7 @@ function createJobService({ pool, env = process.env, logger = console } = {}) {
             salaryMin: job.salaryMin, salaryMax: job.salaryMax, workplaceType: job.workplaceType,
             remote: job.remote, applyUrl: job.applyUrl, postedAt: job.postedAt,
             matchScore: job.matchScore, matchReasons: job.matchReasons, matchedRole: job.matchedRole,
+            matchDetails: job.matchDetails,
         }));
     }
 

@@ -34,23 +34,53 @@ const ready = Promise.all([
             password_hash TEXT NOT NULL,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
-        CREATE TABLE IF NOT EXISTS job_preferences (
+        CREATE TABLE IF NOT EXISTS job_roles (
             id SERIAL PRIMARY KEY,
             username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
             role TEXT NOT NULL,
-            location TEXT,
-            remote_pref VARCHAR(10) NOT NULL DEFAULT 'any',
-            salary_min INTEGER,
-            salary_max INTEGER,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
-        CREATE INDEX IF NOT EXISTS job_preferences_username_idx ON job_preferences (username);
+        CREATE UNIQUE INDEX IF NOT EXISTS job_roles_username_role_idx ON job_roles (username, lower(role));
+        CREATE TABLE IF NOT EXISTS job_locations (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            location TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS job_locations_username_location_idx ON job_locations (username, lower(location));
+        CREATE TABLE IF NOT EXISTS job_profiles (
+            username VARCHAR(20) PRIMARY KEY REFERENCES job_users(username) ON DELETE CASCADE,
+            work_style VARCHAR(10) NOT NULL DEFAULT 'any',
+            salary_min INTEGER,
+            salary_max INTEGER,
+            education_level VARCHAR(20) NOT NULL DEFAULT 'any',
+            experience_years SMALLINT,
+            employment_type VARCHAR(20) NOT NULL DEFAULT 'any',
+            sponsorship VARCHAR(12) NOT NULL DEFAULT 'any',
+            skills TEXT,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
         CREATE TABLE IF NOT EXISTS resumes (
             username VARCHAR(20) PRIMARY KEY REFERENCES job_users(username) ON DELETE CASCADE,
             resume_text TEXT NOT NULL,
             original_filename TEXT,
             uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
+        DO $$
+        BEGIN
+            IF to_regclass('public.job_preferences') IS NOT NULL THEN
+                INSERT INTO job_roles (username, role)
+                    SELECT DISTINCT username, trim(role) FROM job_preferences WHERE trim(role) <> ''
+                    ON CONFLICT DO NOTHING;
+                INSERT INTO job_locations (username, location)
+                    SELECT DISTINCT username, trim(location) FROM job_preferences WHERE trim(COALESCE(location, '')) <> ''
+                    ON CONFLICT DO NOTHING;
+                INSERT INTO job_profiles (username, work_style, salary_min, salary_max)
+                    SELECT DISTINCT ON (username) username, remote_pref, salary_min, salary_max
+                    FROM job_preferences ORDER BY username, created_at DESC
+                    ON CONFLICT (username) DO NOTHING;
+            END IF;
+        END $$;
     `),
     jobService.initialize(),
 ]);
@@ -141,36 +171,89 @@ app.post('/api/jobs/auth/logout', (_req, res) => {
 });
 app.get('/api/jobs/auth/me', requireAuth, (req, res) => res.json({ username: req.jobUsername }));
 
-app.get('/api/jobs/preferences', requireAuth, asyncRoute(async (req, res) => {
-    const result = await pool.query(
-        'SELECT id,role,location,remote_pref AS "remotePref",salary_min AS "salaryMin",salary_max AS "salaryMax" FROM job_preferences WHERE username=$1 ORDER BY created_at',
-        [req.jobUsername]
-    );
-    res.json({ preferences: result.rows });
+const PROFILE_DEFAULTS = {
+    workStyle: 'any', salaryMin: null, salaryMax: null, educationLevel: 'any',
+    experienceYears: null, employmentType: 'any', sponsorship: 'any', skills: '',
+};
+
+app.get('/api/jobs/profile', requireAuth, asyncRoute(async (req, res) => {
+    const [roles, locations, profile] = await Promise.all([
+        pool.query('SELECT id,role FROM job_roles WHERE username=$1 ORDER BY created_at', [req.jobUsername]),
+        pool.query('SELECT id,location FROM job_locations WHERE username=$1 ORDER BY created_at', [req.jobUsername]),
+        pool.query(
+            `SELECT work_style AS "workStyle",salary_min AS "salaryMin",salary_max AS "salaryMax",
+                    education_level AS "educationLevel",experience_years AS "experienceYears",
+                    employment_type AS "employmentType",sponsorship,skills
+             FROM job_profiles WHERE username=$1`,
+            [req.jobUsername]
+        ),
+    ]);
+    res.json({ roles: roles.rows, locations: locations.rows, profile: { ...PROFILE_DEFAULTS, ...(profile.rows[0] || {}) } });
 }));
 
-app.post('/api/jobs/preferences', requireAuth, asyncRoute(async (req, res) => {
-    const { role, location, remotePref = 'any', salaryMin, salaryMax } = req.body || {};
-    if (typeof role !== 'string' || !role.trim() || role.length > 100) return res.status(400).json({ error: 'Enter a role up to 100 characters.' });
-    if (!['any', 'remote', 'hybrid', 'onsite'].includes(remotePref)) return res.status(400).json({ error: 'Invalid work style.' });
-    const toSalary = value => value === '' || value === null || value === undefined ? null : Math.trunc(Number(value));
-    const min = toSalary(salaryMin); const max = toSalary(salaryMax);
-    if ((min !== null && (!Number.isFinite(min) || min < 0 || min > 10000000)) || (max !== null && (!Number.isFinite(max) || max < 0 || max > 10000000))) {
-        return res.status(400).json({ error: 'Salary values must be between 0 and 10,000,000.' });
+app.post('/api/jobs/profile/roles', requireAuth, asyncRoute(async (req, res) => {
+    const role = String(req.body?.role || '').trim();
+    if (!role || role.length > 100) return res.status(400).json({ error: 'Enter a role up to 100 characters.' });
+    try {
+        const result = await pool.query('INSERT INTO job_roles (username,role) VALUES ($1,$2) RETURNING id,role', [req.jobUsername, role]);
+        res.status(201).json({ role: result.rows[0] });
+    } catch (error) {
+        if (error.code === '23505') return res.status(409).json({ error: 'You are already tracking that role.' });
+        throw error;
+    }
+}));
+
+app.delete('/api/jobs/profile/roles/:id', requireAuth, asyncRoute(async (req, res) => {
+    await pool.query('DELETE FROM job_roles WHERE id=$1 AND username=$2', [req.params.id, req.jobUsername]);
+    res.json({ ok: true });
+}));
+
+app.post('/api/jobs/profile/locations', requireAuth, asyncRoute(async (req, res) => {
+    const location = String(req.body?.location || '').trim();
+    if (!location || location.length > 100) return res.status(400).json({ error: 'Enter a location up to 100 characters.' });
+    try {
+        const result = await pool.query('INSERT INTO job_locations (username,location) VALUES ($1,$2) RETURNING id,location', [req.jobUsername, location]);
+        res.status(201).json({ location: result.rows[0] });
+    } catch (error) {
+        if (error.code === '23505') return res.status(409).json({ error: 'You already added that location.' });
+        throw error;
+    }
+}));
+
+app.delete('/api/jobs/profile/locations/:id', requireAuth, asyncRoute(async (req, res) => {
+    await pool.query('DELETE FROM job_locations WHERE id=$1 AND username=$2', [req.params.id, req.jobUsername]);
+    res.json({ ok: true });
+}));
+
+app.put('/api/jobs/profile', requireAuth, asyncRoute(async (req, res) => {
+    const {
+        workStyle = 'any', salaryMin, salaryMax, educationLevel = 'any', experienceYears,
+        employmentType = 'any', sponsorship = 'any', skills = '',
+    } = req.body || {};
+    if (!['any', 'remote', 'hybrid', 'onsite'].includes(workStyle)) return res.status(400).json({ error: 'Invalid work style.' });
+    if (!['any', 'high_school', 'associate', 'bachelor', 'master', 'doctorate'].includes(educationLevel)) return res.status(400).json({ error: 'Invalid education level.' });
+    if (!['any', 'full_time', 'part_time', 'contract', 'internship'].includes(employmentType)) return res.status(400).json({ error: 'Invalid employment type.' });
+    if (!['any', 'required', 'not_required'].includes(sponsorship)) return res.status(400).json({ error: 'Invalid sponsorship preference.' });
+    const optionalNumber = value => value === '' || value === null || value === undefined ? null : Number(value);
+    const min = optionalNumber(salaryMin); const max = optionalNumber(salaryMax); const years = optionalNumber(experienceYears);
+    if ((min !== null && (!Number.isInteger(min) || min < 0 || min > 10000000)) || (max !== null && (!Number.isInteger(max) || max < 0 || max > 10000000))) {
+        return res.status(400).json({ error: 'Salary values must be whole numbers between 0 and 10,000,000.' });
     }
     if (min !== null && max !== null && max < min) return res.status(400).json({ error: 'Maximum salary cannot be lower than minimum salary.' });
+    if (years !== null && (!Number.isInteger(years) || years < 0 || years > 60)) return res.status(400).json({ error: 'Experience must be between 0 and 60 years.' });
+    const skillText = String(skills).trim();
+    if (skillText.length > 1000) return res.status(400).json({ error: 'Skills must be 1,000 characters or fewer.' });
     const result = await pool.query(
-        `INSERT INTO job_preferences (username,role,location,remote_pref,salary_min,salary_max)
-         VALUES ($1,$2,$3,$4,$5,$6)
-         RETURNING id,role,location,remote_pref AS "remotePref",salary_min AS "salaryMin",salary_max AS "salaryMax"`,
-        [req.jobUsername, role.trim(), String(location || '').trim() || null, remotePref, min, max]
+        `INSERT INTO job_profiles (username,work_style,salary_min,salary_max,education_level,experience_years,employment_type,sponsorship,skills)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         ON CONFLICT (username) DO UPDATE SET work_style=$2,salary_min=$3,salary_max=$4,education_level=$5,
+             experience_years=$6,employment_type=$7,sponsorship=$8,skills=$9,updated_at=now()
+         RETURNING work_style AS "workStyle",salary_min AS "salaryMin",salary_max AS "salaryMax",
+                   education_level AS "educationLevel",experience_years AS "experienceYears",
+                   employment_type AS "employmentType",sponsorship,skills`,
+        [req.jobUsername, workStyle, min, max, educationLevel, years, employmentType, sponsorship, skillText || null]
     );
-    res.status(201).json({ preference: result.rows[0] });
-}));
-
-app.delete('/api/jobs/preferences/:id', requireAuth, asyncRoute(async (req, res) => {
-    await pool.query('DELETE FROM job_preferences WHERE id=$1 AND username=$2', [req.params.id, req.jobUsername]);
-    res.json({ ok: true });
+    res.json({ profile: result.rows[0] });
 }));
 
 const resumeUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
@@ -208,14 +291,23 @@ app.get('/api/jobs/resume', requireAuth, asyncRoute(async (req, res) => {
 app.get('/api/jobs/recommendations', requireAuth, async (req, res) => {
     try {
         await ready;
-        const [preferencesResult, resumeResult] = await Promise.all([
-            pool.query('SELECT role,location,remote_pref,salary_min,salary_max FROM job_preferences WHERE username=$1', [req.jobUsername]),
+        const [rolesResult, locationsResult, profileResult, resumeResult] = await Promise.all([
+            pool.query('SELECT role FROM job_roles WHERE username=$1', [req.jobUsername]),
+            pool.query('SELECT location FROM job_locations WHERE username=$1', [req.jobUsername]),
+            pool.query(
+                `SELECT work_style AS remote_pref,salary_min,salary_max,education_level,experience_years,
+                        employment_type,sponsorship,skills FROM job_profiles WHERE username=$1`,
+                [req.jobUsername]
+            ),
             pool.query('SELECT resume_text FROM resumes WHERE username=$1', [req.jobUsername]),
         ]);
-        const preferences = preferencesResult.rows;
-        if (!preferences.length) return res.json({ recommendations: [], message: 'Add a job role to get recommendations.' });
+        if (!rolesResult.rows.length) return res.json({ recommendations: [], message: 'Add a job role to get recommendations.' });
+        const profile = profileResult.rows[0] || { remote_pref: 'any', education_level: 'any', employment_type: 'any', sponsorship: 'any', skills: '' };
+        const locations = locationsResult.rows.length ? locationsResult.rows : [{ location: null }];
+        const preferences = rolesResult.rows.flatMap(role => locations.map(location => ({ ...profile, role: role.role, location: location.location })));
         await jobService.refreshForPreferences(preferences);
-        const recommendations = await jobService.recommendations(preferences, resumeResult.rows[0]?.resume_text || '');
+        const candidateText = `${profile.skills || ''} ${resumeResult.rows[0]?.resume_text || ''}`.trim();
+        const recommendations = await jobService.recommendations(preferences, candidateText);
         res.json({ recommendations });
     } catch (error) {
         console.error('recommendations failed:', error.message);

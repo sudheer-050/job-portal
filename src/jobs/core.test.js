@@ -2,7 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { canonicalizeUrl, normalizeJob, rankJobs, scoreJob } = require('./core');
+const {
+    canonicalizeUrl, detectEducationRequirement, detectEmploymentType,
+    detectMinimumExperience, detectSponsorship, normalizeJob, rankJobs, scoreJob,
+} = require('./core');
 
 test('normalizeJob rejects incomplete postings and cleans HTML', () => {
     assert.equal(normalizeJob({ title: 'Engineer' }), null);
@@ -30,4 +33,34 @@ test('missing salary data is neutral rather than a false perfect match', () => {
     const result = scoreJob({ role: 'Data Scientist', salary_min: 200000, remote_pref: 'remote' }, '', job);
     assert.ok(result.score < 100);
     assert.ok(result.score > 50);
+});
+
+test('extracts structured expectations from job descriptions and metadata', () => {
+    assert.equal(detectMinimumExperience('Requires 4+ years of customer-facing experience.'), 4);
+    assert.equal(detectEducationRequirement("Bachelor's degree or equivalent experience"), 'bachelor');
+    assert.equal(detectSponsorship('Candidates must be authorized without sponsorship.'), 'unavailable');
+    assert.equal(detectEmploymentType({ title: 'Engineer', metadata: { employmentType: 'FullTime' } }), 'full_time');
+});
+
+test('experience, education, employment type, and sponsorship affect ranking', () => {
+    const preference = {
+        role: 'Solutions Engineer', location: 'Chicago', remote_pref: 'hybrid', salary_min: 100000,
+        experience_years: 4, education_level: 'bachelor', employment_type: 'full_time', sponsorship: 'required',
+    };
+    const matching = normalizeJob({
+        source: 'ashby', id: 'match', title: 'Solutions Engineer', company: 'Acme', location: 'Chicago',
+        workplaceType: 'hybrid', salaryMax: 150000, postedAt: new Date().toISOString(),
+        description: "3+ years experience. Bachelor's degree. Visa sponsorship is available.",
+        metadata: { employmentType: 'FullTime' }, applyUrl: 'https://example.com/match',
+    });
+    const mismatch = normalizeJob({
+        source: 'ashby', id: 'mismatch', title: 'Solutions Engineer', company: 'Other', location: 'Chicago',
+        workplaceType: 'hybrid', salaryMax: 150000, postedAt: new Date().toISOString(),
+        description: '10+ years experience. Doctorate required. We are unable to sponsor visas.',
+        metadata: { employmentType: 'Contract' }, applyUrl: 'https://example.com/mismatch',
+    });
+    const ranked = rankJobs([preference], '', [mismatch, matching]);
+    assert.equal(ranked[0].id, matching.id);
+    assert.ok(ranked[0].matchScore > ranked[1].matchScore);
+    assert.ok(ranked[0].matchReasons.includes('Employment type matched'));
 });

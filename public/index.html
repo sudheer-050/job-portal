@@ -129,7 +129,7 @@
         .page-heading h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
         .page-heading p { color: var(--text-muted); font-size: 13.5px; margin: 0; }
 
-        .app-shell { display: grid; grid-template-columns: 320px 1fr; gap: 22px; align-items: start; }
+        .app-shell { display: grid; grid-template-columns: 380px 1fr; gap: 22px; align-items: start; }
         @media (max-width: 860px) { .app-shell { grid-template-columns: 1fr; } }
         .sidebar { position: sticky; top: 78px; display: flex; flex-direction: column; }
         @media (max-width: 860px) { .sidebar { position: static; } }
@@ -156,6 +156,18 @@
         .add-role-row .btn { flex-shrink: 0; padding: 10px 16px; }
 
         .pref-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+        .profile-section { padding: 16px 0; border-top: 1px solid var(--border-color-soft); }
+        .profile-section:first-of-type { border-top: 0; padding-top: 4px; }
+        .profile-section h3 { font-size: 13px; margin: 0 0 4px; }
+        .profile-section .hint { margin-bottom: 10px; }
+        .chip-list { display: flex; flex-wrap: wrap; min-height: 26px; }
+        .chip-list:empty::after { color: var(--text-faint); font-size: 12px; }
+        #roleList:empty::after { content: "No roles added."; }
+        #locationList:empty::after { content: "Any location."; }
+        .expectation-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .expectation-grid .wide { grid-column: 1 / -1; }
+        .profile-save-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+        .profile-save-row .success-msg { margin: 0; flex: 1; }
 
         .resume-status { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-faint); margin-top: 12px; }
         .resume-status.has-resume { color: var(--accent-green); }
@@ -285,34 +297,68 @@
         <div class="app-shell">
             <div class="sidebar">
                 <div class="card">
-                    <h2>Roles you're tracking</h2>
-                    <p class="hint">Add as many as you like — recommendations pull from all of them.</p>
-                    <div class="role-list" id="roleList"></div>
-                    <div class="add-role-row">
-                        <input type="text" id="newRoleInput" placeholder="e.g. Machine Learning Engineer">
-                        <button type="button" class="btn btn-primary" id="addRoleBtn">Add</button>
+                    <h2>Your job profile</h2>
+                    <p class="hint">Set each preference separately. Every answer changes how jobs are ranked.</p>
+
+                    <div class="profile-section">
+                        <h3>Desired roles</h3>
+                        <p class="hint">Add each title you want to consider.</p>
+                        <div class="chip-list" id="roleList"></div>
+                        <div class="add-role-row">
+                            <input type="text" id="newRoleInput" placeholder="e.g. Solutions Engineer">
+                            <button type="button" class="btn btn-primary" id="addRoleBtn">Add</button>
+                        </div>
                     </div>
-                    <div class="pref-grid">
-                        <div>
-                            <label for="newRoleLocation">Location</label>
-                            <input type="text" id="newRoleLocation" placeholder="Austin, TX">
+
+                    <div class="profile-section">
+                        <h3>Preferred locations</h3>
+                        <p class="hint">Add cities, states, or countries. Leave empty for anywhere.</p>
+                        <div class="chip-list" id="locationList"></div>
+                        <div class="add-role-row">
+                            <input type="text" id="newLocationInput" placeholder="e.g. Chicago, IL">
+                            <button type="button" class="btn btn-primary" id="addLocationBtn">Add</button>
                         </div>
-                        <div>
-                            <label for="newRoleRemote">Work style</label>
-                            <select id="newRoleRemote">
-                                <option value="any">Any</option>
-                                <option value="remote">Remote</option>
-                                <option value="hybrid">Hybrid</option>
-                                <option value="onsite">On-site</option>
-                            </select>
+                    </div>
+
+                    <div class="profile-section">
+                        <h3>Expectations and qualifications</h3>
+                        <div class="expectation-grid">
+                            <div>
+                                <label for="profileWorkStyle">Work style</label>
+                                <select id="profileWorkStyle"><option value="any">Any</option><option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="onsite">On-site</option></select>
+                            </div>
+                            <div>
+                                <label for="profileEmploymentType">Employment type</label>
+                                <select id="profileEmploymentType"><option value="any">Any</option><option value="full_time">Full-time</option><option value="part_time">Part-time</option><option value="contract">Contract</option><option value="internship">Internship</option></select>
+                            </div>
+                            <div>
+                                <label for="profileSalaryMin">Minimum salary</label>
+                                <input type="number" id="profileSalaryMin" min="0" max="10000000" step="1000" placeholder="100000">
+                            </div>
+                            <div>
+                                <label for="profileSalaryMax">Maximum salary</label>
+                                <input type="number" id="profileSalaryMax" min="0" max="10000000" step="1000" placeholder="180000">
+                            </div>
+                            <div>
+                                <label for="profileEducation">Education completed</label>
+                                <select id="profileEducation"><option value="any">Prefer not to say</option><option value="high_school">High school / GED</option><option value="associate">Associate degree</option><option value="bachelor">Bachelor's degree</option><option value="master">Master's degree</option><option value="doctorate">Doctorate / PhD</option></select>
+                            </div>
+                            <div>
+                                <label for="profileExperience">Years of experience</label>
+                                <input type="number" id="profileExperience" min="0" max="60" step="1" placeholder="5">
+                            </div>
+                            <div class="wide">
+                                <label for="profileSponsorship">Visa sponsorship</label>
+                                <select id="profileSponsorship"><option value="any">No preference</option><option value="required">I require sponsorship</option><option value="not_required">I do not require sponsorship</option></select>
+                            </div>
+                            <div class="wide">
+                                <label for="profileSkills">Key skills</label>
+                                <textarea id="profileSkills" maxlength="1000" placeholder="APIs, AWS, Python, solution architecture, customer discovery"></textarea>
+                            </div>
                         </div>
-                        <div>
-                            <label for="newRoleSalaryMin">Minimum salary (USD)</label>
-                            <input type="number" id="newRoleSalaryMin" min="0" max="10000000" step="1000" placeholder="100000">
-                        </div>
-                        <div>
-                            <label for="newRoleSalaryMax">Maximum salary (USD)</label>
-                            <input type="number" id="newRoleSalaryMax" min="0" max="10000000" step="1000" placeholder="180000">
+                        <div class="profile-save-row">
+                            <button type="button" class="btn btn-primary" id="saveProfileBtn">Save profile</button>
+                            <div class="success-msg" id="profileSaved">Profile saved.</div>
                         </div>
                     </div>
                     <div class="error-msg" id="prefError"></div>
@@ -459,7 +505,7 @@
             const avatar = document.getElementById('userAvatar');
             avatar.textContent = username.charAt(0).toUpperCase();
             avatar.style.background = colorForName(username);
-            loadPreferences();
+            loadProfile();
             loadResumeStatus();
             loadRecommendations();
             loadSourceStatus();
@@ -472,42 +518,51 @@
             } catch (e) { /* not logged in -- stay on auth view */ }
         })();
 
-        /* ---- Preferences ---- */
+        /* ---- Job profile ---- */
         const roleList = document.getElementById('roleList');
+        const locationList = document.getElementById('locationList');
         const prefError = document.getElementById('prefError');
+        const profileSaved = document.getElementById('profileSaved');
 
-        function renderRoles(preferences) {
-            roleList.innerHTML = '';
-            preferences.forEach(p => {
+        function renderChips(container, items, textKey, deletePath) {
+            container.innerHTML = '';
+            items.forEach(item => {
                 const chip = document.createElement('div');
                 chip.className = 'role-chip';
-                const salary = p.salaryMin || p.salaryMax
-                    ? `$${Math.round((p.salaryMin || 0) / 1000)}k${p.salaryMax ? `–$${Math.round(p.salaryMax / 1000)}k` : '+'}`
-                    : null;
-                const meta = [p.location, (p.remotePref && p.remotePref !== 'any') ? p.remotePref : null, salary].filter(Boolean);
-                chip.innerHTML = `<span><span class="role-name">${escapeHtml(p.role)}</span>${
-                    meta.length ? `<span class="role-meta">${meta.map(b => escapeHtml(b)).join(' · ')}</span>` : ''
-                }</span>`;
+                const label = document.createElement('span');
+                label.className = 'role-name';
+                label.textContent = item[textKey];
+                chip.appendChild(label);
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
                 removeBtn.textContent = '×';
                 removeBtn.title = 'Remove';
                 removeBtn.addEventListener('click', async () => {
                     try {
-                        await api(`/api/jobs/preferences/${p.id}`, { method: 'DELETE' });
-                        loadPreferences();
+                        await api(`${deletePath}/${item.id}`, { method: 'DELETE' });
+                        loadProfile();
                         loadRecommendations();
                     } catch (err) { prefError.textContent = err.message; prefError.style.display = 'block'; }
                 });
                 chip.appendChild(removeBtn);
-                roleList.appendChild(chip);
+                container.appendChild(chip);
             });
         }
 
-        async function loadPreferences() {
+        async function loadProfile() {
             try {
-                const data = await api('/api/jobs/preferences');
-                renderRoles(data.preferences || []);
+                const data = await api('/api/jobs/profile');
+                renderChips(roleList, data.roles || [], 'role', '/api/jobs/profile/roles');
+                renderChips(locationList, data.locations || [], 'location', '/api/jobs/profile/locations');
+                const profile = data.profile || {};
+                document.getElementById('profileWorkStyle').value = profile.workStyle || 'any';
+                document.getElementById('profileEmploymentType').value = profile.employmentType || 'any';
+                document.getElementById('profileSalaryMin').value = profile.salaryMin ?? '';
+                document.getElementById('profileSalaryMax').value = profile.salaryMax ?? '';
+                document.getElementById('profileEducation').value = profile.educationLevel || 'any';
+                document.getElementById('profileExperience').value = profile.experienceYears ?? '';
+                document.getElementById('profileSponsorship').value = profile.sponsorship || 'any';
+                document.getElementById('profileSkills').value = profile.skills || '';
             } catch (err) { /* quietly ignore -- not fatal to the page */ }
         }
 
@@ -517,27 +572,59 @@
             const role = roleInput.value.trim();
             if (!role) { prefError.textContent = 'Enter a role first.'; prefError.style.display = 'block'; return; }
             try {
-                await api('/api/jobs/preferences', {
+                await api('/api/jobs/profile/roles', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        role,
-                        location: document.getElementById('newRoleLocation').value.trim(),
-                        remotePref: document.getElementById('newRoleRemote').value,
-                        salaryMin: document.getElementById('newRoleSalaryMin').value,
-                        salaryMax: document.getElementById('newRoleSalaryMax').value,
-                    }),
+                    body: JSON.stringify({ role }),
                 });
                 roleInput.value = '';
-                document.getElementById('newRoleLocation').value = '';
-                document.getElementById('newRoleSalaryMin').value = '';
-                document.getElementById('newRoleSalaryMax').value = '';
-                loadPreferences();
+                loadProfile();
                 loadRecommendations();
             } catch (err) { prefError.textContent = err.message; prefError.style.display = 'block'; }
         });
         document.getElementById('newRoleInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addRoleBtn').click(); }
+        });
+
+        document.getElementById('addLocationBtn').addEventListener('click', async () => {
+            prefError.style.display = 'none';
+            const input = document.getElementById('newLocationInput');
+            const location = input.value.trim();
+            if (!location) { prefError.textContent = 'Enter a location first.'; prefError.style.display = 'block'; return; }
+            try {
+                await api('/api/jobs/profile/locations', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location }),
+                });
+                input.value = '';
+                loadProfile();
+                loadRecommendations();
+            } catch (err) { prefError.textContent = err.message; prefError.style.display = 'block'; }
+        });
+        document.getElementById('newLocationInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addLocationBtn').click(); }
+        });
+
+        document.getElementById('saveProfileBtn').addEventListener('click', async () => {
+            prefError.style.display = 'none';
+            profileSaved.style.display = 'none';
+            try {
+                await api('/api/jobs/profile', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        workStyle: document.getElementById('profileWorkStyle').value,
+                        employmentType: document.getElementById('profileEmploymentType').value,
+                        salaryMin: document.getElementById('profileSalaryMin').value,
+                        salaryMax: document.getElementById('profileSalaryMax').value,
+                        educationLevel: document.getElementById('profileEducation').value,
+                        experienceYears: document.getElementById('profileExperience').value,
+                        sponsorship: document.getElementById('profileSponsorship').value,
+                        skills: document.getElementById('profileSkills').value,
+                    }),
+                });
+                profileSaved.style.display = 'block';
+                loadRecommendations();
+            } catch (err) { prefError.textContent = err.message; prefError.style.display = 'block'; }
         });
 
         /* ---- Resume ---- */
