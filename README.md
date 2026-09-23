@@ -59,6 +59,10 @@ npm start
 
 Node.js 20 or newer and PostgreSQL 15 or newer are recommended.
 
+For the myhai.org production host, `docker-compose.production.yml` runs only the
+standalone portal service, joins the existing production database and ingress
+networks, and exposes it internally as `job-portal-prod:3000`.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

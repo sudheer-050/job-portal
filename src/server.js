@@ -128,6 +128,10 @@ app.get('/health', async (_req, res) => {
     }
 });
 
+app.get(['/jobs', '/jobs/'], (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
 app.post('/api/jobs/auth/signup', authLimiter, async (req, res) => {
     const { username, email, password } = req.body || {};
     if (!USERNAME_PATTERN.test(username || '')) return res.status(400).json({ error: 'Username must be 3-20 characters using letters, numbers, or underscore.' });

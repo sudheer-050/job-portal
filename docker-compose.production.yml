@@ -1,0 +1,41 @@
+services:
+  job-portal:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      COOKIE_SECURE: 'true'
+      TRUST_PROXY_HOPS: 1
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      JOB_GREENHOUSE_BOARDS: ${JOB_GREENHOUSE_BOARDS:-}
+      JOB_LEVER_SITES: ${JOB_LEVER_SITES:-}
+      JOB_ASHBY_BOARDS: ${JOB_ASHBY_BOARDS:-}
+      JOB_WORKABLE_ACCOUNTS: ${JOB_WORKABLE_ACCOUNTS:-}
+      JOB_REFRESH_MINUTES: ${JOB_REFRESH_MINUTES:-360}
+      JOB_RETENTION_DAYS: ${JOB_RETENTION_DAYS:-45}
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
+      USAJOBS_API_KEY: ${USAJOBS_API_KEY:-}
+      USAJOBS_USER_AGENT: ${USAJOBS_USER_AGENT:-}
+      JOOBLE_API_KEY: ${JOOBLE_API_KEY:-}
+    networks:
+      production_database:
+      ingress:
+        aliases:
+          - job-portal-prod
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:3000/health']
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+networks:
+  production_database:
+    external: true
+    name: hurricane-chat-prod_default
+  ingress:
+    external: true
+    name: hurricane-chat-ingress
