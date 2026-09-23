@@ -28,6 +28,17 @@ test('ranking favors the requested title and returns explanations', () => {
     assert.ok(ranked[0].matchReasons.length >= 2);
 });
 
+test('selected locations exclude otherwise relevant jobs in other cities', () => {
+    const preferences = [
+        { role: 'Solutions Engineer', location: 'Chicago, IL', remote_pref: 'any' },
+        { role: 'Solutions Engineer', location: 'Austin', remote_pref: 'any' },
+    ];
+    const chicago = normalizeJob({ source: 'lever', id: 'chi', title: 'Solutions Engineer', location: 'Chicago, IL', applyUrl: 'https://example.com/chi' });
+    const paris = normalizeJob({ source: 'lever', id: 'paris', title: 'Solutions Engineer', location: 'Paris, France', applyUrl: 'https://example.com/paris' });
+    const ranked = rankJobs(preferences, '', [paris, chicago]);
+    assert.deepEqual(ranked.map(job => job.id), [chicago.id]);
+});
+
 test('missing salary data is neutral rather than a false perfect match', () => {
     const job = normalizeJob({ source: 'ashby', id: '1', title: 'Data Scientist', applyUrl: 'https://example.com/1', location: 'Remote', remote: true });
     const result = scoreJob({ role: 'Data Scientist', salary_min: 200000, remote_pref: 'remote' }, '', job);

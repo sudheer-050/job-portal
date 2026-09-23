@@ -224,6 +224,10 @@ function rankJobs(preferences, resumeText, jobs, limit = 50) {
     const bestByCanonical = new Map();
     for (const job of jobs) {
         for (const preference of preferences) {
+            const wantedLocation = normalizeQuery(preference.location);
+            if (wantedLocation && !['any', 'anywhere'].includes(wantedLocation) && locationScore(preference, job) < 0.5) {
+                continue;
+            }
             const result = scoreJob(preference, resumeText, job);
             if (result.roleRelevance < 0.25) continue;
             const key = job.canonicalKey || canonicalizeUrl(job.applyUrl) || stableHash(`${job.company}|${job.title}|${job.location}`);
