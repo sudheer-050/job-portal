@@ -18,7 +18,8 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "${PORT:-3000}:3000"
+      # Keep local credentials and the development portal off the LAN.
+      - "127.0.0.1:${PORT:-3000}:3000"
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -36,6 +37,13 @@ services:
       USAJOBS_API_KEY: ${USAJOBS_API_KEY:-}
       USAJOBS_USER_AGENT: ${USAJOBS_USER_AGENT:-}
       JOOBLE_API_KEY: ${JOOBLE_API_KEY:-}
+      HAGENT_URL: ${HAGENT_URL:-}
+      HAGENT_TOKEN: ${HAGENT_TOKEN:-}
+      HAGENT_PROJECT_ID: ${HAGENT_PROJECT_ID:-}
+      HAGENT_RECRUITER_AGENT_ID: ${HAGENT_RECRUITER_AGENT_ID:-}
+      HAGENT_REVIEWER_AGENT_ID: ${HAGENT_REVIEWER_AGENT_ID:-}
+      SUBMISSION_RUNNER_URL: ${SUBMISSION_RUNNER_URL:-}
+      SUBMISSION_RUNNER_TOKEN: ${SUBMISSION_RUNNER_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy

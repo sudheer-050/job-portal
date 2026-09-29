@@ -17,6 +17,11 @@ resume.
   and Jooble adapters
 - Normalization, cross-source deduplication, freshness tracking, and closed-job handling
 - Explainable match scores and original provider/application links
+- Full application identity, job preferences, work authorization, and Auto/Hybrid/Review modes
+- Hagent resume tailoring followed by a separate, truthfulness-first quality review
+- Preparing, action-required, and applied-job tracking with an auditable event history
+- Central message, recruiter-update, and notification APIs
+- Submission-runner integration that requires a real employer confirmation before marking Applied
 - Docker Compose deployment with PostgreSQL
 
 Provider documentation and attribution are recorded in
@@ -39,6 +44,15 @@ Provider documentation and attribution are recorded in
 Keyless sources work without provider credentials. Employer ATS sources remain
 disabled until their board lists are configured. Indeed and ZipRecruiter are not
 enabled without approved partner/API access.
+
+### Application automation
+
+Configure the five `HAGENT_*` variables to enable tailored resumes and independent
+quality review. In Auto mode, a passing application is handed to the optional
+submission runner. The runner must return `submitted` plus a confirmation reference;
+otherwise the portal records `action_required` or `needs_review` and keeps the direct
+employer link visible. It never fabricates screening answers or treats an attempted
+submission as successful.
 
 ### How matching works
 

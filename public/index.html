@@ -245,6 +245,23 @@
         }
         a.apply-link:hover { background: var(--accent-brand); color: #fff; }
         a.apply-link .icon { width: 12px; height: 12px; }
+        .application-panel { margin-bottom: 22px; }
+        .application-panel h2 { margin: 0 0 4px; font-size: 16px; }
+        .application-tabs { display: flex; gap: 8px; margin: 14px 0; }
+        .application-tabs button.active { background: var(--accent-brand); color: #fff; border-color: var(--accent-brand); }
+        .application-row { padding: 13px 0; border-top: 1px solid var(--border-color-soft); }
+        .application-row:first-child { border-top: 0; }
+        .application-row-head { display:flex; justify-content:space-between; gap:12px; }
+        .application-row small { color: var(--text-muted); }
+        .application-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+        .application-status { color: var(--accent-amber); font-size: 12px; font-weight: 700; text-transform: capitalize; }
+        .application-status.applied { color: var(--accent-green); }
+        .product-nav { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 18px; }
+        .product-nav a { color:var(--text-muted); text-decoration:none; font-size:12.5px; font-weight:700; padding:8px 13px; border:1px solid var(--border-color-soft); border-radius:999px; }
+        .product-nav a:hover { color:var(--accent-brand); border-color:var(--accent-brand); }
+        .message-row { padding:12px 0; border-top:1px solid var(--border-color-soft); }
+        .message-row:first-child { border-top:0; }
+        .message-row p { margin:5px 0 0; color:var(--text-muted); white-space:pre-wrap; }
 
         .empty-state, .loading-state {
             text-align: center; color: var(--text-faint); font-size: 13.5px; padding: 56px 20px;
@@ -309,9 +326,24 @@
 
         <div class="app-shell">
             <div class="sidebar">
-                <div class="card">
+                <div class="card" id="profile">
                     <h2>Your job profile</h2>
                     <p class="hint">Set each preference separately. Every answer changes how jobs are ranked.</p>
+
+                    <div class="profile-section">
+                        <h3>Application identity</h3>
+                        <p class="hint">Used to complete employer forms. Hagent never invents missing answers.</p>
+                        <div class="expectation-grid">
+                            <div class="wide"><label for="profileFullName">Full legal name</label><input id="profileFullName" autocomplete="name"></div>
+                            <div><label for="profilePhone">Phone</label><input id="profilePhone" autocomplete="tel"></div>
+                            <div><label for="profileCity">City</label><input id="profileCity" autocomplete="address-level2"></div>
+                            <div><label for="profileState">State / region</label><input id="profileState" autocomplete="address-level1"></div>
+                            <div><label for="profileAuthorization">Work authorization</label><input id="profileAuthorization" placeholder="e.g. Authorized in the U.S."></div>
+                            <div class="wide"><label for="profileLinkedIn">LinkedIn URL</label><input type="url" id="profileLinkedIn" placeholder="https://linkedin.com/in/..."></div>
+                            <div class="wide"><label for="profilePortfolio">Portfolio URL</label><input type="url" id="profilePortfolio" placeholder="https://..."></div>
+                            <div class="wide"><label for="profileApplicationMode">Application mode</label><select id="profileApplicationMode"><option value="auto">Auto — submit after QA passes</option><option value="hybrid">Hybrid — prepare, then I submit</option><option value="review">Review — require my approval</option></select></div>
+                        </div>
+                    </div>
 
                     <div class="profile-section">
                         <h3>Desired roles</h3>
@@ -392,7 +424,24 @@
             </div>
 
             <div class="main-col">
-                <div class="recs-header">
+                <nav class="product-nav" aria-label="Job portal sections">
+                    <a href="#matches">Job matches</a><a href="#applications">Applications</a><a href="#messages">Messages</a><a href="#profile">Profile &amp; documents</a>
+                </nav>
+                <div class="card application-panel" id="applications">
+                    <h2>Application tracker</h2>
+                    <p class="hint">Hagent tailors and independently verifies each resume. Login or direct-portal steps stay visible here.</p>
+                    <div class="application-tabs">
+                        <button type="button" class="btn btn-ghost active" data-application-tab="active">Preparing / ready</button>
+                        <button type="button" class="btn btn-ghost" data-application-tab="applied">Applied jobs</button>
+                    </div>
+                    <div id="applicationsContainer"><span class="source-status">No tracked applications yet.</span></div>
+                </div>
+                <div class="card application-panel" id="messages">
+                    <h2>Messages &amp; interview updates</h2>
+                    <p class="hint">Recruiter replies and application-linked updates appear in one inbox.</p>
+                    <div id="messagesContainer"><span class="source-status">No messages yet.</span></div>
+                </div>
+                <div class="recs-header" id="matches">
                     <div>
                         <h2>Your job matches</h2>
                         <p class="hint">Full matches are separated from relevant jobs with preference gaps.</p>
@@ -522,6 +571,8 @@
             loadResumeStatus();
             loadRecommendations();
             loadSourceStatus();
+            loadApplications();
+            loadMessages();
         }
 
         (async function checkSession() {
@@ -576,6 +627,14 @@
                 document.getElementById('profileExperience').value = profile.experienceYears ?? '';
                 document.getElementById('profileSponsorship').value = profile.sponsorship || 'any';
                 document.getElementById('profileSkills').value = profile.skills || '';
+                document.getElementById('profileFullName').value = profile.fullName || '';
+                document.getElementById('profilePhone').value = profile.phone || '';
+                document.getElementById('profileCity').value = profile.city || '';
+                document.getElementById('profileState').value = profile.state || '';
+                document.getElementById('profileLinkedIn').value = profile.linkedInUrl || '';
+                document.getElementById('profilePortfolio').value = profile.portfolioUrl || '';
+                document.getElementById('profileAuthorization').value = profile.workAuthorization || '';
+                document.getElementById('profileApplicationMode').value = profile.applicationMode || 'auto';
             } catch (err) { /* quietly ignore -- not fatal to the page */ }
         }
 
@@ -633,6 +692,14 @@
                         experienceYears: document.getElementById('profileExperience').value,
                         sponsorship: document.getElementById('profileSponsorship').value,
                         skills: document.getElementById('profileSkills').value,
+                        fullName: document.getElementById('profileFullName').value,
+                        phone: document.getElementById('profilePhone').value,
+                        city: document.getElementById('profileCity').value,
+                        state: document.getElementById('profileState').value,
+                        linkedInUrl: document.getElementById('profileLinkedIn').value,
+                        portfolioUrl: document.getElementById('profilePortfolio').value,
+                        workAuthorization: document.getElementById('profileAuthorization').value,
+                        applicationMode: document.getElementById('profileApplicationMode').value,
                     }),
                 });
                 profileSaved.style.display = 'block';
@@ -688,6 +755,80 @@
         const recsContainer = document.getElementById('recsContainer');
         const refreshBtn = document.getElementById('refreshRecsBtn');
         const sourceStatus = document.getElementById('sourceStatus');
+        const applicationsContainer = document.getElementById('applicationsContainer');
+        const messagesContainer = document.getElementById('messagesContainer');
+        let applicationTab = 'active';
+
+        async function loadMessages() {
+            try {
+                const items = (await api('/api/jobs/messages')).messages || [];
+                messagesContainer.innerHTML = items.length ? items.map(item => `
+                    <div class="message-row"><strong>${escapeHtml(item.subject || 'Application update')}</strong>
+                    <small> from ${escapeHtml(item.sender)}${item.company ? ` · ${escapeHtml(item.company)}` : ''}</small>
+                    <p>${escapeHtml(item.body)}</p></div>`).join('') : '<span class="source-status">No messages yet.</span>';
+            } catch (err) { messagesContainer.innerHTML = `<span class="source-status">${escapeHtml(err.message)}</span>`; }
+        }
+
+        function renderApplications(items) {
+            const shown = (items || []).filter(item => applicationTab === 'applied' ? item.status === 'applied' : item.status !== 'applied');
+            if (!shown.length) {
+                applicationsContainer.innerHTML = `<span class="source-status">${applicationTab === 'applied' ? 'No applied jobs yet.' : 'No applications being prepared.'}</span>`;
+                return;
+            }
+            applicationsContainer.innerHTML = shown.map(item => `
+                <div class="application-row">
+                    <div class="application-row-head"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.company || 'Company not listed')} &middot; ${escapeHtml(item.source || '')}</small></div><span class="application-status ${item.status === 'applied' ? 'applied' : ''}">${escapeHtml(item.status.replaceAll('_',' '))}${item.quality_score ? ` &middot; ${item.quality_score}/100` : ''}</span></div>
+                    ${item.error ? `<div class="error-msg" style="display:block">${escapeHtml(item.error)}</div>` : ''}
+                    ${item.requires_login ? '<div class="source-status">Your login is required on the employer portal.</div>' : ''}
+                    <div class="application-actions">
+                        ${item.tailored_resume ? `<a class="btn btn-ghost" href="/api/jobs/applications/${item.id}/resume">Download tailored resume</a>` : ''}
+                        <a class="btn btn-ghost" href="${escapeHtml(item.applyUrl)}" target="_blank" rel="noopener noreferrer">Open application / track</a>
+                        ${item.status === 'ready_to_submit' ? `<button class="btn btn-primary" data-submit-application="${item.id}">Submit now</button>` : ''}
+                        ${item.status === 'action_required' ? `<button class="btn btn-primary" data-mark-applied="${item.id}">I finished it</button>` : ''}
+                    </div>
+                    ${item.confirmation_reference ? `<div class="source-status">Confirmation: ${escapeHtml(item.confirmation_reference)}</div>` : ''}
+                </div>`).join('');
+        }
+
+        async function loadApplications() {
+            try { renderApplications((await api('/api/jobs/applications')).applications); }
+            catch (err) { applicationsContainer.innerHTML = `<span class="source-status">${escapeHtml(err.message)}</span>`; }
+        }
+
+        document.querySelectorAll('[data-application-tab]').forEach(button => button.addEventListener('click', () => {
+            document.querySelectorAll('[data-application-tab]').forEach(item => item.classList.toggle('active', item === button));
+            applicationTab = button.dataset.applicationTab;
+            loadApplications();
+        }));
+
+        applicationsContainer.addEventListener('click', async event => {
+            const submitButton = event.target.closest('[data-submit-application]');
+            const appliedButton = event.target.closest('[data-mark-applied]');
+            if (!submitButton && !appliedButton) return;
+            const button = submitButton || appliedButton;
+            button.disabled = true;
+            try {
+                if (submitButton) await api(`/api/jobs/applications/${submitButton.dataset.submitApplication}/submit`, { method: 'POST' });
+                else await api(`/api/jobs/applications/${appliedButton.dataset.markApplied}/applied`, { method: 'POST' });
+            } catch (err) { alert(err.message); }
+            loadApplications();
+        });
+
+        recsContainer.addEventListener('click', async event => {
+            const button = event.target.closest('[data-tailor-job]');
+            if (!button) return;
+            button.disabled = true;
+            button.textContent = 'Sending to Hagent...';
+            try {
+                await api('/api/jobs/applications', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({jobId:button.dataset.tailorJob}) });
+                button.textContent = 'Hagent is preparing it';
+                loadApplications();
+            } catch (err) {
+                button.disabled = false;
+                button.textContent = 'Tailor & track';
+                alert(err.message);
+            }
+        });
 
         async function loadSourceStatus() {
             try {
@@ -745,7 +886,7 @@
                             ${gaps.length ? `<div class="match-reasons preference-gaps">${gaps.map(gap => `<span class="match-reason">${escapeHtml(gap)}</span>`).join('')}</div>` : ''}
                             <div class="job-card-footer">
                                 <span class="source-tag">via ${escapeHtml(job.source || '')}${postedText ? ` · ${escapeHtml(postedText)}` : ''}</span>
-                                <a class="apply-link" href="${escapeHtml(job.applyUrl || '#')}" target="_blank" rel="noopener noreferrer">Apply${ICON_APPLY}</a>
+                                <span><button class="btn btn-primary" data-tailor-job="${escapeHtml(job.id)}">Tailor &amp; track</button> <a class="apply-link" href="${escapeHtml(job.applyUrl || '#')}" target="_blank" rel="noopener noreferrer">Direct link${ICON_APPLY}</a></span>
                             </div>
                         </div>
                     </div>
