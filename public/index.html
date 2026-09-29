@@ -143,7 +143,8 @@
         .page-heading h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
         .page-heading p { color: var(--text-muted); font-size: 13.5px; margin: 0; }
 
-        .app-shell { display: grid; grid-template-columns: clamp(320px,24vw,410px) minmax(0,1fr); gap: clamp(18px,1.6vw,30px); align-items: start; }
+        .app-shell { display: grid; grid-template-columns: clamp(240px,18vw,290px) minmax(0,1fr); gap: clamp(18px,1.6vw,30px); align-items: start; transition:grid-template-columns .2s ease; }
+        .app-shell.menu-collapsed { grid-template-columns:76px minmax(0,1fr); }
         .main-col { min-width: 0; }
         @media (max-width: 860px) { .app-shell { grid-template-columns: 1fr; } }
         .sidebar {
@@ -153,7 +154,24 @@
         }
         @media (max-width: 860px) {
             .sidebar { position: static; max-height: none; overflow: visible; padding-right: 0; }
+            .app-shell.menu-collapsed { grid-template-columns:1fr; }
         }
+        [hidden] { display:none !important; }
+        .workspace-menu { background:rgba(14,27,45,.82); border:1px solid var(--border-color-soft); border-radius:var(--radius-lg); padding:10px; margin-bottom:14px; backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
+        .workspace-menu-toggle { width:100%; display:flex; align-items:center; gap:11px; border:0; background:transparent; color:var(--text-normal); padding:9px 10px; border-radius:10px; cursor:pointer; font:700 13px var(--font-stack); }
+        .workspace-menu-toggle:hover { background:var(--glass-weak); }
+        .hamburger { width:19px; display:grid; gap:4px; flex:none; }
+        .hamburger span { display:block; height:2px; border-radius:999px; background:linear-gradient(90deg,var(--accent-brand),#7aa7ff); }
+        .workspace-nav { display:grid; gap:5px; margin-top:8px; }
+        .workspace-nav button,.workspace-nav a { display:flex; align-items:center; width:100%; border:1px solid transparent; background:transparent; color:var(--text-muted); text-decoration:none; border-radius:10px; padding:9px 11px; cursor:pointer; font:650 12.5px var(--font-stack); text-align:left; }
+        .workspace-nav button:hover,.workspace-nav a:hover { color:var(--text-normal); background:var(--glass-weak); }
+        .workspace-nav button.active { color:#07111f; background:var(--accent-brand); }
+        .menu-collapsed .workspace-menu { padding:10px 8px; }
+        .menu-collapsed .workspace-menu-toggle { justify-content:center; }
+        .menu-collapsed .workspace-menu-label,.menu-collapsed .workspace-nav { display:none; }
+        .workspace-view-title { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin:0 0 18px; }
+        .workspace-view-title h2 { margin:0; font-size:20px; }
+        .workspace-view-title p { margin:4px 0 0; color:var(--text-muted); font-size:13px; }
 
         .role-chip {
             display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04);
@@ -271,9 +289,6 @@
         .application-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
         .application-status { color: var(--accent-amber); font-size: 12px; font-weight: 700; text-transform: capitalize; }
         .application-status.applied { color: var(--accent-green); }
-        .product-nav { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 18px; }
-        .product-nav a { color:var(--text-muted); text-decoration:none; font-size:12.5px; font-weight:700; padding:8px 13px; border:1px solid var(--border-color-soft); border-radius:999px; }
-        .product-nav a:hover { color:var(--accent-brand); border-color:var(--accent-brand); }
         .message-row { padding:12px 0; border-top:1px solid var(--border-color-soft); }
         .message-row:first-child { border-top:0; }
         .message-row p { margin:5px 0 0; color:var(--text-muted); white-space:pre-wrap; }
@@ -295,7 +310,7 @@
         .btn-small { padding:7px 11px; font-size:11.5px; }
         .check-row { display:flex; align-items:center; gap:8px; color:var(--text-muted); font-size:13px; }
         .check-row input { width:18px; height:18px; accent-color:var(--accent-brand); }
-        @media(max-width:900px){.summary-grid{grid-template-columns:repeat(3,1fr)}.feature-grid{grid-template-columns:1fr}.feature-card.wide{grid-column:auto}}
+        @media(max-width:900px){.summary-grid{grid-template-columns:repeat(3,1fr)}.feature-grid{grid-template-columns:1fr}.feature-card.wide{grid-column:auto}.workspace-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
         @media(max-width:620px){.summary-grid{grid-template-columns:repeat(2,1fr)}.compact-form{grid-template-columns:1fr}.compact-form .wide{grid-column:auto}.job-card-footer{align-items:flex-start;gap:12px}.job-quick-actions{justify-content:flex-start}}
 
         .empty-state, .loading-state {
@@ -309,7 +324,7 @@
 </head>
 <body>
     <header>
-        <a href="/jobs" class="brand">Job<span class="tag">Portal</span><span class="version-badge" id="appVersion">v3.1.0</span></a>
+        <a href="/jobs" class="brand">Job<span class="tag">Portal</span><span class="version-badge" id="appVersion">v3.1.1</span></a>
         <div class="header-actions">
             <a class="updates-link" href="/jobs/updates">What's new</a>
             <div class="user-pill" id="userPill">
@@ -357,11 +372,6 @@
 
     <!-- LOGGED IN -->
     <div id="appView" style="display:none;">
-        <div class="page-heading">
-            <h1>Your career command center, <span id="welcomeUsername2"></span>.</h1>
-            <p>Discover, tailor, verify, apply, interview, and manage offers from one calm workspace.</p>
-        </div>
-
         <section class="summary-grid" aria-label="Career dashboard">
             <div class="summary-card"><strong id="statSaved">0</strong><span>Saved</span></div>
             <div class="summary-card"><strong id="statActive">0</strong><span>In progress</span></div>
@@ -371,9 +381,22 @@
             <div class="summary-card"><strong id="statOffers">0</strong><span>Offers</span></div>
         </section>
 
-        <div class="app-shell">
+        <div class="app-shell" id="appShell">
             <div class="sidebar">
-                <div class="card" id="profile">
+                <nav class="workspace-menu" aria-label="Workspace sections">
+                    <button type="button" class="workspace-menu-toggle" id="workspaceMenuToggle" aria-expanded="true" aria-controls="workspaceNav"><span class="hamburger" aria-hidden="true"><span></span><span></span><span></span></span><span class="workspace-menu-label">Workspace</span></button>
+                    <div class="workspace-nav" id="workspaceNav">
+                        <button type="button" data-workspace-target="discover">Discover jobs</button>
+                        <button type="button" data-workspace-target="focus">Focus plan</button>
+                        <button type="button" data-workspace-target="applications">Applications</button>
+                        <button type="button" data-workspace-target="profile">Profile &amp; resume</button>
+                        <button type="button" data-workspace-target="schedule">Interviews &amp; offers</button>
+                        <button type="button" data-workspace-target="alerts">Action center</button>
+                        <button type="button" data-workspace-target="messages">Inbox</button>
+                        <a href="/jobs/updates">Versions &amp; updates</a>
+                    </div>
+                </nav>
+                <div class="card" id="profile" data-workspace-view="profile">
                     <h2>Your job profile</h2>
                     <p class="hint">Set each preference separately. Every answer changes how jobs are ranked.</p>
 
@@ -456,7 +479,7 @@
                     <div class="error-msg" id="prefError"></div>
                 </div>
 
-                <div class="card">
+                <div class="card" data-workspace-view="profile">
                     <h2>Your resume</h2>
                     <p class="hint">Optional, but matches get noticeably better with it — only you can ever see it.</p>
                     <label for="resumeFile">Upload a PDF</label>
@@ -471,51 +494,49 @@
             </div>
 
             <div class="main-col">
-                <nav class="product-nav" aria-label="Job portal sections">
-                    <a href="#matches">Discover</a><a href="#saved">Saved</a><a href="#focus">Focus plan</a><a href="#applications">Applications</a><a href="#career">Career profile</a><a href="#schedule">Interviews &amp; offers</a><a href="#alerts">Alerts</a><a href="#messages">Inbox</a><a href="/jobs/updates">Updates</a>
-                </nav>
-                <section class="feature-grid">
-                    <article class="feature-card" id="saved">
+                <div class="workspace-view-title"><div><h2 id="workspaceViewTitle">Discover jobs</h2><p id="workspaceViewSubtitle">Search, shortlist, and act on your strongest matches.</p></div></div>
+                <section class="feature-grid" id="featureGrid">
+                    <article class="feature-card" id="saved" data-workspace-view="discover">
                         <h2>Saved jobs</h2><p class="hint">Your shortlist stays separate from applications.</p>
                         <div class="mini-list" id="savedJobsList"><span class="source-status">No saved jobs yet.</span></div>
                     </article>
-                    <article class="feature-card">
+                    <article class="feature-card" data-workspace-view="discover">
                         <h2>Saved searches &amp; alerts</h2><p class="hint">Reuse searches and control portal notifications.</p>
                         <div class="compact-form"><div><label for="searchName">Search name</label><input id="searchName" placeholder="Remote backend roles"></div><div><label for="searchQuery">Keywords</label><input id="searchQuery" placeholder="Node.js API"></div><button class="btn btn-primary wide" id="saveSearchBtn">Save search</button></div>
                         <div class="mini-list" id="savedSearchesList"></div>
                         <div class="compact-form"><div><label for="digestFrequency">Digest</label><select id="digestFrequency"><option value="instant">Instant</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="off">Off</option></select></div><div class="check-row"><input type="checkbox" id="alertApplications" checked><label for="alertApplications">Application updates</label></div><button class="btn btn-ghost wide" id="saveAlertsBtn">Save alert settings</button></div>
                     </article>
-                    <article class="feature-card wide" id="focus">
+                    <article class="feature-card wide" id="focus" data-workspace-view="focus">
                         <h2>Focused jobs &amp; interview roadmap</h2><p class="hint">Prioritize the roles that matter, schedule recruiter follow-ups, and train against a practical interview-readiness checklist.</p>
                         <div class="mini-list" id="focusedJobsList"><span class="source-status">Choose Focus on a saved job or recommendation.</span></div>
                         <div class="mini-list" id="interviewPrepList"></div>
                     </article>
-                    <article class="feature-card wide" id="career">
+                    <article class="feature-card wide" id="career" data-workspace-view="profile">
                         <h2>Career profile &amp; answer library</h2><p class="hint">Structured facts improve matching. Only answers you explicitly approve are eligible for auto-apply.</p>
                         <div class="compact-form"><div><label for="careerKind">Section</label><select id="careerKind"><option value="experience">Experience</option><option value="education">Education</option><option value="certification">Certification</option><option value="project">Project</option><option value="volunteering">Volunteering</option><option value="language">Language</option><option value="reference">Reference</option></select></div><div><label for="careerTitle">Title</label><input id="careerTitle" placeholder="Senior Software Engineer"></div><div><label for="careerOrg">Organization</label><input id="careerOrg" placeholder="Company or school"></div><div><label for="careerDescription">Description</label><input id="careerDescription" placeholder="Outcomes, scope, credentials"></div><button class="btn btn-primary wide" id="addCareerItemBtn">Add to career profile</button></div>
                         <div class="mini-list" id="careerItemsList"></div>
                         <div class="compact-form"><div><label for="answerQuestion">Screening question</label><input id="answerQuestion" placeholder="Are you authorized to work in the U.S.?"></div><div><label for="answerValue">Verified answer</label><input id="answerValue" placeholder="Yes"></div><div class="check-row wide"><input type="checkbox" id="answerApproved"><label for="answerApproved">Approve for automatic applications</label></div><button class="btn btn-ghost wide" id="addAnswerBtn">Save answer</button></div>
                         <div class="mini-list" id="answerLibraryList"></div>
                     </article>
-                    <article class="feature-card wide" id="schedule">
+                    <article class="feature-card wide" id="schedule" data-workspace-view="schedule">
                         <h2>Interviews &amp; offers</h2><p class="hint">Track every conversation, deadline, and decision.</p>
                         <div class="compact-form"><div><label for="interviewDate">Interview date</label><input type="datetime-local" id="interviewDate"></div><div><label for="interviewFormat">Format</label><select id="interviewFormat"><option value="video">Video</option><option value="phone">Phone</option><option value="onsite">On-site</option></select></div><div><label for="interviewContact">Contact</label><input id="interviewContact" placeholder="Recruiter name"></div><button class="btn btn-primary" id="addInterviewBtn">Add interview</button></div>
                         <div class="mini-list" id="interviewsList"></div>
                         <div class="compact-form"><div><label for="offerCompany">Offer company</label><input id="offerCompany"></div><div><label for="offerTitle">Role</label><input id="offerTitle"></div><div><label for="offerSalary">Base salary</label><input type="number" id="offerSalary" min="0"></div><button class="btn btn-ghost" id="addOfferBtn">Track offer</button></div>
                         <div class="mini-list" id="offersList"></div>
                     </article>
-                    <article class="feature-card">
+                    <article class="feature-card" data-workspace-view="schedule">
                         <h2>Events &amp; networking</h2><p class="hint">Keep career fairs, meetups, and networking sessions beside your search.</p>
                         <div class="compact-form"><div><label for="eventTitle">Event</label><input id="eventTitle" placeholder="Engineering career fair"></div><div><label for="eventDate">Starts</label><input type="datetime-local" id="eventDate"></div><button class="btn btn-primary wide" id="addEventBtn">Add event</button></div>
                         <div class="mini-list" id="eventsList"></div>
                     </article>
-                    <article class="feature-card">
+                    <article class="feature-card" data-workspace-view="schedule">
                         <h2>Company research notes</h2><p class="hint">Keep your own private ratings and interview research.</p>
                         <div class="compact-form"><div><label for="reviewCompany">Company</label><input id="reviewCompany"></div><div><label for="reviewRating">Rating</label><select id="reviewRating"><option value="5">5 — Excellent</option><option value="4">4 — Good</option><option value="3">3 — Mixed</option><option value="2">2 — Weak</option><option value="1">1 — Avoid</option></select></div><div class="wide"><label for="reviewText">Notes</label><input id="reviewText" placeholder="Culture, interview, compensation, concerns"></div><button class="btn btn-ghost wide" id="addReviewBtn">Save company note</button></div>
                         <div class="mini-list" id="reviewsList"></div>
                     </article>
                 </section>
-                <div class="card application-panel" id="applications">
+                <div class="card application-panel" id="applications" data-workspace-view="applications">
                     <h2>Application tracker</h2>
                     <p class="hint">Hagent tailors and independently verifies each resume. Login or direct-portal steps stay visible here.</p>
                     <div class="application-tabs">
@@ -524,16 +545,16 @@
                     </div>
                     <div id="applicationsContainer"><span class="source-status">No tracked applications yet.</span></div>
                 </div>
-                <div class="card application-panel" id="alerts">
+                <div class="card application-panel" id="alerts" data-workspace-view="alerts">
                     <div class="application-row-head"><div><h2>Action center</h2><p class="hint">Application actions, interview reminders, offer deadlines, and employer contact links.</p></div><button type="button" class="btn btn-ghost btn-small" id="readAllAlertsBtn">Mark all read</button></div>
                     <div id="alertsContainer"><span class="source-status">No alerts yet.</span></div>
                 </div>
-                <div class="card application-panel" id="messages">
+                <div class="card application-panel" id="messages" data-workspace-view="messages">
                     <h2>Messages &amp; interview updates</h2>
                     <p class="hint">Recruiter replies and application-linked updates appear in one inbox.</p>
                     <div id="messagesContainer"><span class="source-status">No messages yet.</span></div>
                 </div>
-                <div class="recs-header" id="matches">
+                <div class="recs-header" id="matches" data-workspace-view="discover">
                     <div>
                         <h2>Your job matches</h2>
                         <p class="hint">Full matches are separated from relevant jobs with preference gaps.</p>
@@ -544,7 +565,7 @@
                         Refresh
                     </button>
                 </div>
-                <div id="recsContainer" class="job-list"></div>
+                <div id="recsContainer" class="job-list" data-workspace-view="discover"></div>
             </div>
         </div>
     </div>
@@ -654,15 +675,59 @@
             location.reload();
         });
 
+        const WORKSPACE_VIEWS = {
+            discover: ['Discover jobs','Search, shortlist, and act on your strongest matches.'],
+            focus: ['Focus plan','Keep priority roles, follow-ups, and interview training in one place.'],
+            applications: ['Applications','Track preparation, review, submission, and completed applications.'],
+            profile: ['Profile & resume','Manage the verified information Hagent uses for matching and applications.'],
+            schedule: ['Interviews & offers','Coordinate interviews, offers, events, and company research.'],
+            alerts: ['Action center','See what needs attention and open verified employer contact links.'],
+            messages: ['Inbox','Review recruiter messages and application updates.'],
+        };
+        const HASH_TO_VIEW = { matches:'discover',saved:'discover',focus:'focus',applications:'applications',profile:'profile',career:'profile',schedule:'schedule',alerts:'alerts',messages:'messages' };
+        const VIEW_TO_HASH = { discover:'matches',focus:'focus',applications:'applications',profile:'profile',schedule:'schedule',alerts:'alerts',messages:'messages' };
+        const appShell = document.getElementById('appShell');
+        const workspaceMenuToggle = document.getElementById('workspaceMenuToggle');
+
+        function workspaceViewFromHash() { return HASH_TO_VIEW[location.hash.slice(1)] || 'discover'; }
+        function setWorkspaceView(view, updateHash = true) {
+            if (!WORKSPACE_VIEWS[view]) view = 'discover';
+            document.querySelectorAll('[data-workspace-view]').forEach(element => { element.hidden = element.dataset.workspaceView !== view; });
+            document.querySelectorAll('[data-workspace-target]').forEach(button => {
+                const active = button.dataset.workspaceTarget === view;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-current', active ? 'page' : 'false');
+            });
+            const [title,subtitle] = WORKSPACE_VIEWS[view];
+            document.getElementById('workspaceViewTitle').textContent = title;
+            document.getElementById('workspaceViewSubtitle').textContent = subtitle;
+            document.getElementById('featureGrid').hidden = !['discover','focus','profile','schedule'].includes(view);
+            if (updateHash) history.replaceState(null,'',`#${VIEW_TO_HASH[view]}`);
+            if (matchMedia('(max-width: 860px)').matches) {
+                appShell.classList.add('menu-collapsed');
+                workspaceMenuToggle.setAttribute('aria-expanded','false');
+            }
+            window.scrollTo({top:0,behavior:'smooth'});
+        }
+        document.getElementById('workspaceNav').addEventListener('click', event => {
+            const button=event.target.closest('[data-workspace-target]'); if(!button)return;
+            setWorkspaceView(button.dataset.workspaceTarget);
+        });
+        workspaceMenuToggle.addEventListener('click', () => {
+            const collapsed=appShell.classList.toggle('menu-collapsed');
+            workspaceMenuToggle.setAttribute('aria-expanded',String(!collapsed));
+        });
+        addEventListener('hashchange',()=>{if(appView.style.display!=='none')setWorkspaceView(workspaceViewFromHash(),false);});
+
         function enterApp(username) {
             authView.style.display = 'none';
             appView.style.display = '';
             userPill.style.display = 'flex';
             document.getElementById('welcomeUsername').textContent = username;
-            document.getElementById('welcomeUsername2').textContent = username;
             const avatar = document.getElementById('userAvatar');
             avatar.textContent = username.charAt(0).toUpperCase();
             avatar.style.background = colorForName(username);
+            setWorkspaceView(workspaceViewFromHash(), false);
             loadProfile();
             loadResumeStatus();
             loadRecommendations();
@@ -885,7 +950,7 @@
         async function addFocusedJob(jobId) {
             await api(`/api/jobs/focus/${encodeURIComponent(jobId)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({priority:3,stage:'saved'})});
             openPrepJobId = jobId; await loadFocusedJobs(); loadSavedJobs(); loadDashboard();
-            document.getElementById('focus').scrollIntoView({behavior:'smooth',block:'start'});
+            setWorkspaceView('focus');
         }
         async function loadInterviewPrep(jobId) {
             const container=document.getElementById('interviewPrepList');

@@ -1,10 +1,16 @@
 # Release notes
 
-**Document version:** 3.1.0
+**Document version:** 3.1.1
 
 **Level:** Stable
 
 **Last reviewed:** 2026-09-29
+
+## 3.1.1 — Focused workspace navigation
+
+- Replaced the long all-in-one workspace with a collapsible three-line sidebar.
+- Split Discover, Focus, Applications, Profile, Interviews, Action Center, and Inbox into focused views.
+- Preserved deep links and added a compact mobile navigation state.
 
 ## 3.1.0 — Focus, follow-up, and interview readiness
 

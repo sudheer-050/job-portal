@@ -1,6 +1,6 @@
 # Job Portal
 
-**Product version:** 3.1.0
+**Product version:** 3.1.1
 
 **Release level:** Stable
 
@@ -32,6 +32,7 @@ resume.
 - Candidate-approved screening-answer library for truthful auto-apply completion
 - In-portal action alerts with employer/application links and read-state controls
 - Focused-job follow-up plans and job-specific interview training roadmaps
+- Collapsible three-line workspace sidebar with focused section views
 - Submission-runner integration that requires a real employer confirmation before marking Applied
 - Docker Compose deployment with PostgreSQL
 
