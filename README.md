@@ -1,6 +1,6 @@
 # Job Portal
 
-**Product version:** 3.0.0
+**Product version:** 3.1.0
 
 **Release level:** Stable
 
@@ -30,6 +30,8 @@ resume.
 - Saved and hidden jobs, reusable searches, configurable alerts, and career dashboard analytics
 - Structured experience, education, certifications, projects, languages, interviews, and offer tracking
 - Candidate-approved screening-answer library for truthful auto-apply completion
+- In-portal action alerts with employer/application links and read-state controls
+- Focused-job follow-up plans and job-specific interview training roadmaps
 - Submission-runner integration that requires a real employer confirmation before marking Applied
 - Docker Compose deployment with PostgreSQL
 

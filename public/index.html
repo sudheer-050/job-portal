@@ -31,6 +31,15 @@
             --radius-sm: 8px;
         }
         * { box-sizing: border-box; }
+        html { scrollbar-width: thin; scrollbar-color: rgba(94,234,212,.48) rgba(7,17,31,.2); }
+        *::-webkit-scrollbar { width: 7px; height: 7px; }
+        *::-webkit-scrollbar-track { background: rgba(7,17,31,.18); border-radius: 999px; }
+        *::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg,rgba(94,234,212,.62),rgba(122,167,255,.46));
+            border: 1px solid rgba(255,255,255,.15); border-radius: 999px;
+            box-shadow: inset 0 0 5px rgba(255,255,255,.18),0 0 8px rgba(94,234,212,.12);
+        }
+        *::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg,rgba(94,234,212,.82),rgba(122,167,255,.66)); }
         body {
             margin: 0; font-family: var(--font-stack); background: radial-gradient(circle at 8% -10%,rgba(94,234,212,.12),transparent 30%),radial-gradient(circle at 95% 0,rgba(122,167,255,.12),transparent 28%),var(--bg-main);
             color: var(--text-normal); min-height: 100vh; -webkit-font-smoothing: antialiased;
@@ -129,12 +138,13 @@
         .success-msg { color: #bbf7d0; background: var(--accent-green-soft); border: 1px solid rgba(74, 222, 128, 0.25); }
 
         /* ---- App shell ---- */
-        #appView { max-width: 1080px; margin: 0 auto; padding: 28px 24px 80px; }
+        #appView { width: 100%; max-width: none; margin: 0; padding: 28px clamp(16px,2vw,40px) 80px; }
         .page-heading { margin-bottom: 22px; }
         .page-heading h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
         .page-heading p { color: var(--text-muted); font-size: 13.5px; margin: 0; }
 
-        .app-shell { display: grid; grid-template-columns: 380px 1fr; gap: 22px; align-items: start; }
+        .app-shell { display: grid; grid-template-columns: clamp(320px,24vw,410px) minmax(0,1fr); gap: clamp(18px,1.6vw,30px); align-items: start; }
+        .main-col { min-width: 0; }
         @media (max-width: 860px) { .app-shell { grid-template-columns: 1fr; } }
         .sidebar {
             position: sticky; top: 78px; display: flex; flex-direction: column;
@@ -267,7 +277,7 @@
         .message-row { padding:12px 0; border-top:1px solid var(--border-color-soft); }
         .message-row:first-child { border-top:0; }
         .message-row p { margin:5px 0 0; color:var(--text-muted); white-space:pre-wrap; }
-        .summary-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:12px; max-width:1180px; margin:0 auto 22px; padding:0 20px; }
+        .summary-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:12px; width:100%; max-width:none; margin:0 auto 22px; padding:0 clamp(16px,2vw,40px); }
         .summary-card { background:linear-gradient(145deg,rgba(20,38,61,.96),rgba(11,25,43,.96)); border:1px solid var(--border-color-soft); border-radius:16px; padding:16px; box-shadow:0 18px 50px rgba(0,0,0,.16); }
         .summary-card strong { display:block; font-size:25px; letter-spacing:-.04em; }
         .summary-card span { color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; font-weight:800; }
@@ -299,7 +309,7 @@
 </head>
 <body>
     <header>
-        <a href="/jobs" class="brand">Job<span class="tag">Portal</span><span class="version-badge" id="appVersion">v3.0.0</span></a>
+        <a href="/jobs" class="brand">Job<span class="tag">Portal</span><span class="version-badge" id="appVersion">v3.1.0</span></a>
         <div class="header-actions">
             <a class="updates-link" href="/jobs/updates">What's new</a>
             <div class="user-pill" id="userPill">
@@ -462,7 +472,7 @@
 
             <div class="main-col">
                 <nav class="product-nav" aria-label="Job portal sections">
-                    <a href="#matches">Discover</a><a href="#saved">Saved</a><a href="#applications">Applications</a><a href="#career">Career profile</a><a href="#schedule">Interviews &amp; offers</a><a href="#messages">Inbox</a><a href="/jobs/updates">Updates</a>
+                    <a href="#matches">Discover</a><a href="#saved">Saved</a><a href="#focus">Focus plan</a><a href="#applications">Applications</a><a href="#career">Career profile</a><a href="#schedule">Interviews &amp; offers</a><a href="#alerts">Alerts</a><a href="#messages">Inbox</a><a href="/jobs/updates">Updates</a>
                 </nav>
                 <section class="feature-grid">
                     <article class="feature-card" id="saved">
@@ -474,6 +484,11 @@
                         <div class="compact-form"><div><label for="searchName">Search name</label><input id="searchName" placeholder="Remote backend roles"></div><div><label for="searchQuery">Keywords</label><input id="searchQuery" placeholder="Node.js API"></div><button class="btn btn-primary wide" id="saveSearchBtn">Save search</button></div>
                         <div class="mini-list" id="savedSearchesList"></div>
                         <div class="compact-form"><div><label for="digestFrequency">Digest</label><select id="digestFrequency"><option value="instant">Instant</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="off">Off</option></select></div><div class="check-row"><input type="checkbox" id="alertApplications" checked><label for="alertApplications">Application updates</label></div><button class="btn btn-ghost wide" id="saveAlertsBtn">Save alert settings</button></div>
+                    </article>
+                    <article class="feature-card wide" id="focus">
+                        <h2>Focused jobs &amp; interview roadmap</h2><p class="hint">Prioritize the roles that matter, schedule recruiter follow-ups, and train against a practical interview-readiness checklist.</p>
+                        <div class="mini-list" id="focusedJobsList"><span class="source-status">Choose Focus on a saved job or recommendation.</span></div>
+                        <div class="mini-list" id="interviewPrepList"></div>
                     </article>
                     <article class="feature-card wide" id="career">
                         <h2>Career profile &amp; answer library</h2><p class="hint">Structured facts improve matching. Only answers you explicitly approve are eligible for auto-apply.</p>
@@ -508,6 +523,10 @@
                         <button type="button" class="btn btn-ghost" data-application-tab="applied">Applied jobs</button>
                     </div>
                     <div id="applicationsContainer"><span class="source-status">No tracked applications yet.</span></div>
+                </div>
+                <div class="card application-panel" id="alerts">
+                    <div class="application-row-head"><div><h2>Action center</h2><p class="hint">Application actions, interview reminders, offer deadlines, and employer contact links.</p></div><button type="button" class="btn btn-ghost btn-small" id="readAllAlertsBtn">Mark all read</button></div>
+                    <div id="alertsContainer"><span class="source-status">No alerts yet.</span></div>
                 </div>
                 <div class="card application-panel" id="messages">
                     <h2>Messages &amp; interview updates</h2>
@@ -650,8 +669,10 @@
             loadSourceStatus();
             loadApplications();
             loadMessages();
+            loadNotifications();
             loadDashboard();
             loadSavedJobs();
+            loadFocusedJobs();
             loadSearchesAndAlerts();
             loadCareerHub();
             loadSchedule();
@@ -848,14 +869,50 @@
             const container = document.getElementById('savedJobsList');
             try {
                 const jobs = (await api('/api/jobs/saved')).jobs || [];
-                container.innerHTML = jobs.length ? jobs.map(job => `<div class="mini-row"><div><strong>${escapeHtml(job.title)}</strong><p>${escapeHtml(job.company || 'Company not listed')} · ${escapeHtml(job.location || 'Location flexible')}</p></div><div class="job-quick-actions"><a class="btn btn-ghost btn-small" href="${escapeHtml(job.applyUrl)}" target="_blank" rel="noopener">Open</a><button class="btn btn-ghost btn-small" data-unsave-job="${escapeHtml(job.id)}">Remove</button></div></div>`).join('') : '<span class="source-status">No saved jobs yet.</span>';
+                container.innerHTML = jobs.length ? jobs.map(job => `<div class="mini-row"><div><strong>${escapeHtml(job.title)}</strong><p>${escapeHtml(job.company || 'Company not listed')} · ${escapeHtml(job.location || 'Location flexible')}</p></div><div class="job-quick-actions"><button class="btn btn-primary btn-small" data-focus-job="${escapeHtml(job.id)}">Focus</button><a class="btn btn-ghost btn-small" href="${escapeHtml(job.applyUrl)}" target="_blank" rel="noopener">Open</a><button class="btn btn-ghost btn-small" data-unsave-job="${escapeHtml(job.id)}">Remove</button></div></div>`).join('') : '<span class="source-status">No saved jobs yet.</span>';
             } catch (err) { container.innerHTML = `<span class="source-status">${escapeHtml(err.message)}</span>`; }
         }
         document.getElementById('savedJobsList').addEventListener('click', async event => {
-            const button = event.target.closest('[data-unsave-job]'); if (!button) return;
+            const focus = event.target.closest('[data-focus-job]');
+            const button = event.target.closest('[data-unsave-job]');
+            if (focus) { await addFocusedJob(focus.dataset.focusJob); return; }
+            if (!button) return;
             await api(`/api/jobs/saved/${encodeURIComponent(button.dataset.unsaveJob)}`, { method:'DELETE' });
             loadSavedJobs(); loadDashboard(); loadRecommendations();
         });
+
+        let openPrepJobId = null;
+        async function addFocusedJob(jobId) {
+            await api(`/api/jobs/focus/${encodeURIComponent(jobId)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({priority:3,stage:'saved'})});
+            openPrepJobId = jobId; await loadFocusedJobs(); loadSavedJobs(); loadDashboard();
+            document.getElementById('focus').scrollIntoView({behavior:'smooth',block:'start'});
+        }
+        async function loadInterviewPrep(jobId) {
+            const container=document.getElementById('interviewPrepList');
+            if(!jobId){container.innerHTML='';return;}
+            const data=await api(`/api/jobs/focus/${encodeURIComponent(jobId)}/prep`);
+            const tasks=data.tasks||[];
+            container.innerHTML=tasks.length?`<div class="mini-row"><div><strong>Interview training roadmap</strong><p>${tasks.filter(item=>item.completed).length}/${tasks.length} complete</p></div></div>${tasks.map(item=>`<label class="mini-row"><span><input type="checkbox" data-prep-task="${item.id}" ${item.completed?'checked':''}> ${escapeHtml(item.title)}</span><span class="source-status">${escapeHtml(item.category)}</span></label>`).join('')}`:'<span class="source-status">Select “Build interview plan” to create the role-specific preparation roadmap.</span>';
+        }
+        async function loadFocusedJobs() {
+            const container=document.getElementById('focusedJobsList');
+            try{
+                const jobs=(await api('/api/jobs/focus')).jobs||[];
+                container.innerHTML=jobs.length?jobs.map(job=>`<div class="mini-row"><div style="flex:1"><strong>${escapeHtml(job.title)} at ${escapeHtml(job.company||'Company')}</strong><p>Priority ${job.priority} · ${escapeHtml(job.stage.replaceAll('_',' '))} · Prep ${job.prepCompleted}/${job.prepTotal}</p><div class="compact-form"><div><label>Stage</label><select data-focus-stage="${escapeHtml(job.id)}">${['saved','preparing','applied','recruiter_contact','interview','offer'].map(stage=>`<option value="${stage}" ${job.stage===stage?'selected':''}>${stage.replaceAll('_',' ')}</option>`).join('')}</select></div><div><label>Next follow-up</label><input type="datetime-local" data-focus-date="${escapeHtml(job.id)}" value="${job.nextFollowUp?new Date(job.nextFollowUp).toISOString().slice(0,16):''}"></div><div><label>Recruiter/contact</label><input data-focus-contact="${escapeHtml(job.id)}" value="${escapeHtml(job.contactMethod||'')}" placeholder="Email, LinkedIn, or note"></div></div></div><div class="job-quick-actions"><button class="btn btn-primary btn-small" data-save-focus="${escapeHtml(job.id)}">Save plan</button><button class="btn btn-ghost btn-small" data-build-prep="${escapeHtml(job.id)}">Build interview plan</button><button class="btn btn-ghost btn-small" data-view-prep="${escapeHtml(job.id)}">Train</button><a class="btn btn-ghost btn-small" href="${escapeHtml(job.applyUrl)}" target="_blank" rel="noopener noreferrer">Contact / open</a><button class="btn btn-ghost btn-small" data-remove-focus="${escapeHtml(job.id)}">Remove</button></div></div>`).join(''):'<span class="source-status">Choose Focus on a saved job or recommendation.</span>';
+                if(openPrepJobId&&!jobs.some(job=>job.id===openPrepJobId))openPrepJobId=null;
+                await loadInterviewPrep(openPrepJobId);
+            }catch(err){container.innerHTML=`<span class="source-status">${escapeHtml(err.message)}</span>`;}
+        }
+        document.getElementById('focusedJobsList').addEventListener('click',async event=>{
+            const save=event.target.closest('[data-save-focus]'),build=event.target.closest('[data-build-prep]'),view=event.target.closest('[data-view-prep]'),remove=event.target.closest('[data-remove-focus]');
+            const id=save?.dataset.saveFocus||build?.dataset.buildPrep||view?.dataset.viewPrep||remove?.dataset.removeFocus;if(!id)return;
+            if(save){const date=document.querySelector(`[data-focus-date="${CSS.escape(id)}"]`).value;await api(`/api/jobs/focus/${encodeURIComponent(id)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({priority:3,stage:document.querySelector(`[data-focus-stage="${CSS.escape(id)}"]`).value,nextFollowUp:date?new Date(date).toISOString():null,contactMethod:document.querySelector(`[data-focus-contact="${CSS.escape(id)}"]`).value})});}
+            if(build){await api(`/api/jobs/focus/${encodeURIComponent(id)}/prep`,{method:'POST'});openPrepJobId=id;}
+            if(view)openPrepJobId=id;
+            if(remove){await api(`/api/jobs/focus/${encodeURIComponent(id)}`,{method:'DELETE'});if(openPrepJobId===id)openPrepJobId=null;}
+            await loadFocusedJobs();loadNotifications();
+        });
+        document.getElementById('interviewPrepList').addEventListener('change',async event=>{const input=event.target.closest('[data-prep-task]');if(!input)return;await api(`/api/jobs/prep/${input.dataset.prepTask}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({completed:input.checked})});loadFocusedJobs();});
 
         async function loadSearchesAndAlerts() {
             try {
@@ -883,7 +940,7 @@
             try {
                 const [profileData, answerData] = await Promise.all([api('/api/jobs/profile-items'),api('/api/jobs/answer-library')]);
                 document.getElementById('careerItemsList').innerHTML = (profileData.items || []).map(item => `<div class="mini-row"><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.kind)}${item.organization ? ` · ${escapeHtml(item.organization)}` : ''}${item.description ? ` · ${escapeHtml(item.description)}` : ''}</p></div><button class="btn btn-ghost btn-small" data-delete-career="${item.id}">Delete</button></div>`).join('') || '<span class="source-status">Add experience, education, certifications, projects, or languages.</span>';
-                document.getElementById('answerLibraryList').innerHTML = (answerData.answers || []).map(item => `<div class="mini-row"><div><strong>${escapeHtml(item.question)}</strong><p>${escapeHtml(item.answer)} · ${item.approvedForAutoApply ? 'Approved for auto-apply' : 'Manual review only'}</p></div></div>`).join('') || '<span class="source-status">No approved screening answers yet.</span>';
+                document.getElementById('answerLibraryList').innerHTML = (answerData.answers || []).map(item => `<div class="mini-row"><div><strong>${escapeHtml(item.question)}</strong><p>${escapeHtml(item.answer)} · ${item.approvedForAutoApply ? 'Approved for auto-apply' : 'Manual review only'}</p></div><button class="btn btn-ghost btn-small" data-delete-answer="${item.id}">Delete</button></div>`).join('') || '<span class="source-status">No screening answers saved yet.</span>';
             } catch (_) {}
         }
         document.getElementById('addCareerItemBtn').addEventListener('click', async () => {
@@ -900,21 +957,29 @@
             await api('/api/jobs/answer-library',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question,answer,approvedForAutoApply:document.getElementById('answerApproved').checked})});
             document.getElementById('answerQuestion').value='';document.getElementById('answerValue').value='';document.getElementById('answerApproved').checked=false;loadCareerHub();
         });
+        document.getElementById('answerLibraryList').addEventListener('click', async event => {
+            const button=event.target.closest('[data-delete-answer]'); if(!button)return;
+            await api(`/api/jobs/answer-library/${button.dataset.deleteAnswer}`,{method:'DELETE'}); loadCareerHub();
+        });
 
         async function loadSchedule() {
             try {
                 const [interviewData,offerData]=await Promise.all([api('/api/jobs/interviews'),api('/api/jobs/offers')]);
-                document.getElementById('interviewsList').innerHTML=(interviewData.interviews||[]).map(item=>`<div class="mini-row"><div><strong>${escapeHtml(item.title || 'Interview')}</strong><p>${new Date(item.scheduledAt).toLocaleString()} · ${escapeHtml(item.format)}${item.contactName ? ` · ${escapeHtml(item.contactName)}`:''}</p></div><span class="application-status">${escapeHtml(item.status)}</span></div>`).join('')||'<span class="source-status">No interviews scheduled.</span>';
-                document.getElementById('offersList').innerHTML=(offerData.offers||[]).map(item=>`<div class="mini-row"><div><strong>${escapeHtml(item.title)} at ${escapeHtml(item.company)}</strong><p>${item.salary ? '$'+Number(item.salary).toLocaleString() : 'Compensation not entered'} · ${escapeHtml(item.status)}</p></div></div>`).join('')||'<span class="source-status">No offers tracked.</span>';
+                document.getElementById('interviewsList').innerHTML=(interviewData.interviews||[]).map(item=>`<div class="mini-row"><div><strong>${escapeHtml(item.title || 'Interview')}</strong><p>${new Date(item.scheduledAt).toLocaleString()} · ${escapeHtml(item.format)}${item.contactName ? ` · ${escapeHtml(item.contactName)}`:''}</p></div><div class="job-quick-actions"><span class="application-status">${escapeHtml(item.status)}</span>${item.status==='scheduled'?`<button class="btn btn-ghost btn-small" data-complete-interview="${item.id}">Complete</button>`:''}<button class="btn btn-ghost btn-small" data-delete-interview="${item.id}">Delete</button></div></div>`).join('')||'<span class="source-status">No interviews scheduled.</span>';
+                document.getElementById('offersList').innerHTML=(offerData.offers||[]).map(item=>`<div class="mini-row"><div><strong>${escapeHtml(item.title)} at ${escapeHtml(item.company)}</strong><p>${item.salary ? '$'+Number(item.salary).toLocaleString() : 'Compensation not entered'} · ${escapeHtml(item.status)}</p></div><div class="job-quick-actions">${item.status==='considering'?`<button class="btn btn-ghost btn-small" data-offer-status="accepted" data-offer-id="${item.id}">Accept</button><button class="btn btn-ghost btn-small" data-offer-status="declined" data-offer-id="${item.id}">Decline</button>`:''}<button class="btn btn-ghost btn-small" data-delete-offer="${item.id}">Delete</button></div></div>`).join('')||'<span class="source-status">No offers tracked.</span>';
                 loadDashboard();
             } catch (_) {}
         }
         document.getElementById('addInterviewBtn').addEventListener('click',async()=>{const scheduledAt=document.getElementById('interviewDate').value;if(!scheduledAt)return alert('Choose an interview date.');await api('/api/jobs/interviews',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scheduledAt:new Date(scheduledAt).toISOString(),format:document.getElementById('interviewFormat').value,contactName:document.getElementById('interviewContact').value})});document.getElementById('interviewDate').value='';loadSchedule();});
         document.getElementById('addOfferBtn').addEventListener('click',async()=>{const company=document.getElementById('offerCompany').value.trim(),title=document.getElementById('offerTitle').value.trim();if(!company||!title)return alert('Enter the company and role.');await api('/api/jobs/offers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company,title,salary:document.getElementById('offerSalary').value||null})});['offerCompany','offerTitle','offerSalary'].forEach(id=>document.getElementById(id).value='');loadSchedule();});
+        document.getElementById('interviewsList').addEventListener('click',async event=>{const complete=event.target.closest('[data-complete-interview]'),remove=event.target.closest('[data-delete-interview]');if(!complete&&!remove)return;if(complete)await api(`/api/jobs/interviews/${complete.dataset.completeInterview}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'completed'})});else await api(`/api/jobs/interviews/${remove.dataset.deleteInterview}`,{method:'DELETE'});loadSchedule();});
+        document.getElementById('offersList').addEventListener('click',async event=>{const status=event.target.closest('[data-offer-status]'),remove=event.target.closest('[data-delete-offer]');if(!status&&!remove)return;if(status)await api(`/api/jobs/offers/${status.dataset.offerId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:status.dataset.offerStatus})});else await api(`/api/jobs/offers/${remove.dataset.deleteOffer}`,{method:'DELETE'});loadSchedule();});
 
-        async function loadCareerExtras(){try{const[eventData,reviewData]=await Promise.all([api('/api/jobs/events'),api('/api/jobs/company-reviews')]);document.getElementById('eventsList').innerHTML=(eventData.events||[]).map(item=>`<div class="mini-row"><div><strong>${escapeHtml(item.title)}</strong><p>${new Date(item.startsAt).toLocaleString()}${item.organizer?` · ${escapeHtml(item.organizer)}`:''}</p></div></div>`).join('')||'<span class="source-status">No career events saved.</span>';document.getElementById('reviewsList').innerHTML=(reviewData.reviews||[]).map(item=>`<div class="mini-row"><div><strong>${escapeHtml(item.company)} · ${'★'.repeat(item.rating)}</strong><p>${escapeHtml(item.review||item.title||'Private company note')}</p></div></div>`).join('')||'<span class="source-status">No company research notes.</span>';}catch(_){}}
+        async function loadCareerExtras(){try{const[eventData,reviewData]=await Promise.all([api('/api/jobs/events'),api('/api/jobs/company-reviews')]);document.getElementById('eventsList').innerHTML=(eventData.events||[]).map(item=>`<div class="mini-row"><div><strong>${escapeHtml(item.title)}</strong><p>${new Date(item.startsAt).toLocaleString()}${item.organizer?` · ${escapeHtml(item.organizer)}`:''}</p></div><button class="btn btn-ghost btn-small" data-delete-event="${item.id}">Delete</button></div>`).join('')||'<span class="source-status">No career events saved.</span>';document.getElementById('reviewsList').innerHTML=(reviewData.reviews||[]).map(item=>`<div class="mini-row"><div><strong>${escapeHtml(item.company)} · ${'★'.repeat(item.rating)}</strong><p>${escapeHtml(item.review||item.title||'Private company note')}</p></div><button class="btn btn-ghost btn-small" data-delete-review="${item.id}">Delete</button></div>`).join('')||'<span class="source-status">No company research notes.</span>';}catch(_){}}
         document.getElementById('addEventBtn').addEventListener('click',async()=>{const title=document.getElementById('eventTitle').value.trim(),startsAt=document.getElementById('eventDate').value;if(!title||!startsAt)return alert('Enter an event and date.');await api('/api/jobs/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,startsAt:new Date(startsAt).toISOString()})});document.getElementById('eventTitle').value='';document.getElementById('eventDate').value='';loadCareerExtras();});
         document.getElementById('addReviewBtn').addEventListener('click',async()=>{const company=document.getElementById('reviewCompany').value.trim();if(!company)return alert('Enter a company.');await api('/api/jobs/company-reviews',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company,rating:Number(document.getElementById('reviewRating').value),review:document.getElementById('reviewText').value,anonymous:true})});document.getElementById('reviewCompany').value='';document.getElementById('reviewText').value='';loadCareerExtras();});
+        document.getElementById('eventsList').addEventListener('click',async event=>{const button=event.target.closest('[data-delete-event]');if(!button)return;await api(`/api/jobs/events/${button.dataset.deleteEvent}`,{method:'DELETE'});loadCareerExtras();});
+        document.getElementById('reviewsList').addEventListener('click',async event=>{const button=event.target.closest('[data-delete-review]');if(!button)return;await api(`/api/jobs/company-reviews/${button.dataset.deleteReview}`,{method:'DELETE'});loadCareerExtras();});
 
         /* ---- Recommendations ---- */
         const recsContainer = document.getElementById('recsContainer');
@@ -922,7 +987,26 @@
         const sourceStatus = document.getElementById('sourceStatus');
         const applicationsContainer = document.getElementById('applicationsContainer');
         const messagesContainer = document.getElementById('messagesContainer');
+        const alertsContainer = document.getElementById('alertsContainer');
         let applicationTab = 'active';
+
+        async function loadNotifications() {
+            try {
+                const items = (await api('/api/jobs/notifications')).notifications || [];
+                alertsContainer.innerHTML = items.length ? items.map(item => {
+                    const external = /^https?:\/\//i.test(item.link || '');
+                    const safeLink = external || String(item.link || '').startsWith('/jobs') ? item.link : '';
+                    return `<div class="message-row" style="opacity:${item.readAt ? '.68' : '1'}"><strong>${escapeHtml(item.title)}</strong>${item.body ? `<p>${escapeHtml(item.body)}</p>` : ''}<div class="application-actions">${safeLink ? `<a class="btn btn-ghost btn-small" href="${escapeHtml(safeLink)}"${external ? ' target="_blank" rel="noopener noreferrer"' : ''}>${external ? 'Contact / open employer' : 'Open'}</a>` : ''}${item.readAt ? '' : `<button class="btn btn-ghost btn-small" data-read-alert="${item.id}">Mark read</button>`}</div></div>`;
+                }).join('') : '<span class="source-status">No alerts yet.</span>';
+            } catch (err) { alertsContainer.innerHTML = `<span class="source-status">${escapeHtml(err.message)}</span>`; }
+        }
+        alertsContainer.addEventListener('click', async event => {
+            const button=event.target.closest('[data-read-alert]'); if(!button)return;
+            await api(`/api/jobs/notifications/${button.dataset.readAlert}/read`,{method:'POST'}); loadNotifications(); loadDashboard();
+        });
+        document.getElementById('readAllAlertsBtn').addEventListener('click', async () => {
+            await api('/api/jobs/notifications/read-all',{method:'POST'}); loadNotifications(); loadDashboard();
+        });
 
         async function loadMessages() {
             try {
@@ -981,6 +1065,8 @@
         });
 
         recsContainer.addEventListener('click', async event => {
+            const focusButton = event.target.closest('[data-focus-job]');
+            if (focusButton) { await addFocusedJob(focusButton.dataset.focusJob); return; }
             const saveButton = event.target.closest('[data-save-job]');
             if (saveButton) {
                 await api(`/api/jobs/saved/${encodeURIComponent(saveButton.dataset.saveJob)}`, { method:'PUT' });
@@ -1018,7 +1104,10 @@
                 const total = (data.sources || []).reduce((sum, source) => sum + Number(source.count || 0), 0);
                 const sourceCount = (data.sources || []).length;
                 const boardText = data.configuredBoards ? ` · ${data.configuredBoards} employer boards configured` : '';
-                sourceStatus.textContent = `${total.toLocaleString()} active jobs from ${sourceCount} sources${boardText}`;
+                const automationText = data.automation?.autoApplyOperational
+                    ? ' · Hagent and auto-submit ready'
+                    : data.automation?.hagentConfigured ? ' · Hagent ready · external auto-submit connector needed' : ' · Hagent setup needed';
+                sourceStatus.textContent = `${total.toLocaleString()} active jobs from ${sourceCount} sources${boardText}${automationText}`;
             } catch (err) {
                 sourceStatus.textContent = 'Job source status unavailable';
             }
@@ -1068,7 +1157,7 @@
                             ${gaps.length ? `<div class="match-reasons preference-gaps">${gaps.map(gap => `<span class="match-reason">${escapeHtml(gap)}</span>`).join('')}</div>` : ''}
                             <div class="job-card-footer">
                                 <span class="source-tag">via ${escapeHtml(job.source || '')}${postedText ? ` · ${escapeHtml(postedText)}` : ''}</span>
-                                <span class="job-quick-actions"><button class="btn btn-ghost btn-small" data-save-job="${escapeHtml(job.id)}">${job.saved ? 'Saved' : 'Save'}</button><button class="btn btn-ghost btn-small" data-hide-job="${escapeHtml(job.id)}">Hide</button><button class="btn btn-ghost btn-small" data-report-job="${escapeHtml(job.id)}">Report</button><button class="btn btn-primary btn-small" data-tailor-job="${escapeHtml(job.id)}">Tailor &amp; apply</button><a class="apply-link" href="${escapeHtml(job.applyUrl || '#')}" target="_blank" rel="noopener noreferrer">Direct${ICON_APPLY}</a></span>
+                                <span class="job-quick-actions"><button class="btn btn-ghost btn-small" data-save-job="${escapeHtml(job.id)}">${job.saved ? 'Saved' : 'Save'}</button><button class="btn btn-ghost btn-small" data-focus-job="${escapeHtml(job.id)}">Focus</button><button class="btn btn-ghost btn-small" data-hide-job="${escapeHtml(job.id)}">Hide</button><button class="btn btn-ghost btn-small" data-report-job="${escapeHtml(job.id)}">Report</button><button class="btn btn-primary btn-small" data-tailor-job="${escapeHtml(job.id)}">Tailor &amp; apply</button><a class="apply-link" href="${escapeHtml(job.applyUrl || '#')}" target="_blank" rel="noopener noreferrer">Direct${ICON_APPLY}</a></span>
                             </div>
                         </div>
                     </div>

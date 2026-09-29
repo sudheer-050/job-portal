@@ -281,6 +281,29 @@ const ready = (async () => {
             status VARCHAR(16) NOT NULL DEFAULT 'open',
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
+        CREATE TABLE IF NOT EXISTS job_focus_plans (
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            job_id TEXT NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+            priority SMALLINT NOT NULL DEFAULT 1 CHECK (priority BETWEEN 1 AND 3),
+            stage VARCHAR(24) NOT NULL DEFAULT 'saved',
+            next_follow_up TIMESTAMPTZ,
+            contact_name TEXT,
+            contact_method TEXT,
+            notes TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (username,job_id)
+        );
+        CREATE TABLE IF NOT EXISTS job_interview_prep (
+            id BIGSERIAL PRIMARY KEY,
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            job_id TEXT NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+            category VARCHAR(32) NOT NULL,
+            title TEXT NOT NULL,
+            completed BOOLEAN NOT NULL DEFAULT false,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE(username,job_id,title)
+        );
     `);
 })();
 ready.catch(error => {
@@ -383,6 +406,17 @@ async function recordApplicationEvent(applicationId, eventType, detail = null) {
     );
 }
 
+async function notifyUser(username, kind, title, body = null, link = null) {
+    await pool.query(
+        `INSERT INTO job_notifications(username,kind,title,body,link)
+         SELECT $1::varchar(20),$2::varchar(40),$3::text,$4::text,$5::text WHERE NOT EXISTS (
+             SELECT 1 FROM job_notifications WHERE username=$1 AND kind=$2 AND title=$3
+             AND read_at IS NULL AND created_at > now() - interval '24 hours'
+         )`,
+        [username, String(kind).slice(0, 40), String(title).slice(0, 300), body ? String(body).slice(0, 2000) : null, link ? String(link).slice(0, 2000) : null]
+    );
+}
+
 async function submitApplication(applicationId, username) {
     const result = await pool.query(
         `SELECT a.*,p.title,p.company,p.location,p.apply_url,p.description,p.source,
@@ -404,6 +438,7 @@ async function submitApplication(applicationId, username) {
             [applicationId, 'This employer portal needs a supported submission connector. Open the tracked link to finish safely.']
         );
         await recordApplicationEvent(applicationId, 'action_required', 'No supported automatic submission connector.');
+        await notifyUser(username, 'action_required', `Finish your application for ${application.title}`, 'The resume passed review, but this employer portal needs you to open it and complete the final submission.', application.apply_url);
         return { status: 'action_required' };
     }
     await pool.query("UPDATE job_applications SET status='submitting',error=NULL,updated_at=now() WHERE id=$1", [applicationId]);
@@ -436,6 +471,7 @@ async function submitApplication(applicationId, username) {
                 [applicationId, String(outcome.confirmationReference).slice(0, 500), String(outcome.provider || 'submission-runner').slice(0, 100)]
             );
             await recordApplicationEvent(applicationId, 'submitted', String(outcome.confirmationReference));
+            await notifyUser(username, 'application_submitted', `Application submitted: ${application.title}`, `Confirmation: ${outcome.confirmationReference}`, '/jobs#applications');
             return { status: 'applied' };
         }
         const reason = String(outcome.reason || (outcome.status === 'unsupported' ? 'This employer portal is not supported yet.' : 'Login or an unanswered question is required.')).slice(0, 1000);
@@ -444,6 +480,7 @@ async function submitApplication(applicationId, username) {
             [applicationId, Boolean(outcome.requiresLogin), reason]
         );
         await recordApplicationEvent(applicationId, 'action_required', reason);
+        await notifyUser(username, 'action_required', `Action needed for ${application.title}`, reason, application.apply_url);
         return { status: 'action_required' };
     } catch (error) {
         await pool.query("UPDATE job_applications SET status='needs_review',error=$2,updated_at=now() WHERE id=$1", [applicationId, error.message]);
@@ -491,8 +528,11 @@ async function syncApplication(row) {
             );
             await recordApplicationEvent(row.id, passed ? 'quality_passed' : 'quality_failed', JSON.stringify(review || {}));
             if (passed) {
+                await notifyUser(row.username, 'application_ready', `Application ready: ${row.title}`, `Quality review passed with a score of ${score}/100.`, '/jobs#applications');
                 const profile = await pool.query('SELECT application_mode FROM job_profiles WHERE username=$1', [row.username]);
                 if ((profile.rows[0]?.application_mode || 'auto') === 'auto') await submitApplication(row.id, row.username);
+            } else {
+                await notifyUser(row.username, 'review_needed', `Review needed: ${row.title}`, 'The tailored application did not pass the independent quality gate.', '/jobs#applications');
             }
         }
     }
@@ -517,7 +557,7 @@ app.get('/api/jobs/meta', (_req, res) => res.json({
         { name: 'Product guide', version: APP_VERSION, level: 'stable', path: '/jobs#profile' },
         { name: 'Release notes', version: APP_VERSION, level: 'stable', path: '/jobs/updates' },
         { name: 'Job source registry', version: '1.1.0', level: 'controlled', path: '/jobs/updates#documents' },
-        { name: 'Application automation policy', version: '1.1.0', level: 'controlled', path: '/jobs/updates#documents' },
+        { name: 'Application automation policy', version: '1.2.0', level: 'controlled', path: '/jobs/updates#documents' },
         { name: 'Submission runner', version: '0.1.0', level: 'beta', path: '/jobs/updates#known-limitations' },
     ],
 }));
@@ -748,7 +788,17 @@ app.get('/api/jobs/recommendations', requireAuth, async (req, res) => {
 
 app.get('/api/jobs/status', requireAuth, asyncRoute(async (_req, res) => {
     await ready;
-    res.json(await jobService.status());
+    const status = await jobService.status();
+    const hagentConfigured = Boolean(HAGENT_URL && HAGENT_TOKEN && HAGENT_PROJECT_ID && HAGENT_RECRUITER_AGENT_ID && HAGENT_REVIEWER_AGENT_ID);
+    const submissionRunnerConfigured = Boolean(SUBMISSION_RUNNER_URL && SUBMISSION_RUNNER_TOKEN);
+    res.json({
+        ...status,
+        automation: {
+            hagentConfigured,
+            submissionRunnerConfigured,
+            autoApplyOperational: hagentConfigured && submissionRunnerConfigured,
+        },
+    });
 }));
 
 app.post('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
@@ -777,6 +827,7 @@ app.post('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
         [req.jobUsername, jobId, parseCreatedIssue(created)]
     );
     await recordApplicationEvent(result.rows[0].id, 'created', 'Resume tailoring queued with Hagent.');
+    await notifyUser(req.jobUsername, 'application_started', `Tailoring started: ${job.title}`, `Hagent is preparing and independently reviewing your application for ${job.company || 'this employer'}.`, '/jobs#applications');
     res.status(202).json({ application: result.rows[0] });
 }));
 
@@ -828,6 +879,8 @@ app.post('/api/jobs/applications/:id/action-required', requireAuth, asyncRoute(a
         [req.params.id, req.jobUsername, reason === 'login_required', `\nAction required: ${reason}`]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Application not found.' });
+    const job = await pool.query('SELECT p.title,p.apply_url FROM job_postings p JOIN job_applications a ON a.job_id=p.id WHERE a.id=$1', [req.params.id]);
+    await notifyUser(req.jobUsername, 'action_required', `Action needed: ${job.rows[0]?.title || 'application'}`, `The application needs your attention: ${reason.replaceAll('_', ' ')}.`, job.rows[0]?.apply_url || '/jobs#applications');
     res.json({ application: result.rows[0] });
 }));
 
@@ -838,6 +891,7 @@ app.post('/api/jobs/applications/:id/applied', requireAuth, asyncRoute(async (re
         [req.params.id, req.jobUsername]
     );
     if (!result.rows.length) return res.status(409).json({ error: 'Application is not ready to mark as applied.' });
+    await notifyUser(req.jobUsername, 'application_submitted', 'Application marked as submitted', 'The application has moved to Applied jobs.', '/jobs#applications');
     res.json({ application: result.rows[0] });
 }));
 
@@ -885,6 +939,11 @@ app.get('/api/jobs/notifications', requireAuth, asyncRoute(async (req, res) => {
 
 app.post('/api/jobs/notifications/:id/read', requireAuth, asyncRoute(async (req, res) => {
     await pool.query('UPDATE job_notifications SET read_at=COALESCE(read_at,now()) WHERE id=$1 AND username=$2', [req.params.id, req.jobUsername]);
+    res.json({ ok: true });
+}));
+
+app.post('/api/jobs/notifications/read-all', requireAuth, asyncRoute(async (req, res) => {
+    await pool.query('UPDATE job_notifications SET read_at=COALESCE(read_at,now()) WHERE username=$1', [req.jobUsername]);
     res.json({ ok: true });
 }));
 
@@ -1019,7 +1078,25 @@ app.post('/api/jobs/interviews', requireAuth, asyncRoute(async (req, res) => {
         [req.jobUsername, req.body?.applicationId || null, req.body.scheduledAt, Math.min(480, Math.max(10, Number(req.body?.durationMinutes || 30))),
             ['video', 'phone', 'onsite'].includes(req.body?.format) ? req.body.format : 'video', String(req.body?.locationOrUrl || '').slice(0, 1000) || null,
             String(req.body?.contactName || '').slice(0, 200) || null, String(req.body?.notes || '').slice(0, 5000) || null]
-    ); res.status(201).json({ interview: result.rows[0] });
+    );
+    await notifyUser(req.jobUsername, 'interview', 'Interview scheduled', `${new Date(req.body.scheduledAt).toLocaleString()} · ${result.rows[0].format}`, result.rows[0].location_or_url || '/jobs#schedule');
+    res.status(201).json({ interview: result.rows[0] });
+}));
+
+app.patch('/api/jobs/interviews/:id', requireAuth, asyncRoute(async (req, res) => {
+    const status = String(req.body?.status || '');
+    if (!['scheduled', 'completed', 'cancelled'].includes(status)) return res.status(400).json({ error: 'Invalid interview status.' });
+    const result = await pool.query(
+        'UPDATE job_interviews SET status=$3 WHERE id=$1 AND username=$2 RETURNING id,status',
+        [req.params.id, req.jobUsername, status]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Interview not found.' });
+    res.json({ interview: result.rows[0] });
+}));
+
+app.delete('/api/jobs/interviews/:id', requireAuth, asyncRoute(async (req, res) => {
+    await pool.query('DELETE FROM job_interviews WHERE id=$1 AND username=$2', [req.params.id, req.jobUsername]);
+    res.json({ ok: true });
 }));
 
 app.get('/api/jobs/offers', requireAuth, asyncRoute(async (req, res) => {
@@ -1033,7 +1110,25 @@ app.post('/api/jobs/offers', requireAuth, asyncRoute(async (req, res) => {
     const result = await pool.query(
         `INSERT INTO job_offers(username,application_id,company,title,salary,deadline,notes) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
         [req.jobUsername, req.body?.applicationId || null, company, title, req.body?.salary || null, req.body?.deadline || null, String(req.body?.notes || '').slice(0, 5000) || null]
-    ); res.status(201).json({ offer: result.rows[0] });
+    );
+    await notifyUser(req.jobUsername, 'offer', `Offer added: ${title} at ${company}`, req.body?.deadline ? `Decision deadline: ${req.body.deadline}` : 'Review the offer in your career workspace.', '/jobs#schedule');
+    res.status(201).json({ offer: result.rows[0] });
+}));
+
+app.patch('/api/jobs/offers/:id', requireAuth, asyncRoute(async (req, res) => {
+    const status = String(req.body?.status || '');
+    if (!['considering', 'accepted', 'declined', 'expired'].includes(status)) return res.status(400).json({ error: 'Invalid offer status.' });
+    const result = await pool.query(
+        'UPDATE job_offers SET status=$3 WHERE id=$1 AND username=$2 RETURNING id,status',
+        [req.params.id, req.jobUsername, status]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Offer not found.' });
+    res.json({ offer: result.rows[0] });
+}));
+
+app.delete('/api/jobs/offers/:id', requireAuth, asyncRoute(async (req, res) => {
+    await pool.query('DELETE FROM job_offers WHERE id=$1 AND username=$2', [req.params.id, req.jobUsername]);
+    res.json({ ok: true });
 }));
 
 app.get('/api/jobs/events', requireAuth, asyncRoute(async (req, res) => {
@@ -1051,6 +1146,11 @@ app.post('/api/jobs/events', requireAuth, asyncRoute(async (req, res) => {
     ); res.status(201).json({ event: result.rows[0] });
 }));
 
+app.delete('/api/jobs/events/:id', requireAuth, asyncRoute(async (req, res) => {
+    await pool.query('DELETE FROM job_events WHERE id=$1 AND username=$2', [req.params.id, req.jobUsername]);
+    res.json({ ok: true });
+}));
+
 app.get('/api/jobs/company-reviews', requireAuth, asyncRoute(async (req, res) => {
     const result = await pool.query('SELECT id,company,rating,title,review,anonymous,created_at AS "createdAt" FROM job_company_reviews WHERE username=$1 ORDER BY created_at DESC', [req.jobUsername]);
     res.json({ reviews: result.rows });
@@ -1063,6 +1163,11 @@ app.post('/api/jobs/company-reviews', requireAuth, asyncRoute(async (req, res) =
         'INSERT INTO job_company_reviews(username,company,rating,title,review,anonymous) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
         [req.jobUsername, company, rating, String(req.body?.title || '').slice(0, 200) || null, String(req.body?.review || '').slice(0, 5000) || null, req.body?.anonymous !== false]
     ); res.status(201).json({ review: result.rows[0] });
+}));
+
+app.delete('/api/jobs/company-reviews/:id', requireAuth, asyncRoute(async (req, res) => {
+    await pool.query('DELETE FROM job_company_reviews WHERE id=$1 AND username=$2', [req.params.id, req.jobUsername]);
+    res.json({ ok: true });
 }));
 
 app.get('/api/jobs/answer-library', requireAuth, asyncRoute(async (req, res) => {
@@ -1078,6 +1183,103 @@ app.post('/api/jobs/answer-library', requireAuth, asyncRoute(async (req, res) =>
          ON CONFLICT(username,question) DO UPDATE SET answer=$3,answer_type=$4,approved_for_auto_apply=$5,updated_at=now() RETURNING *`,
         [req.jobUsername, question, answer, String(req.body?.answerType || 'general').slice(0, 20), Boolean(req.body?.approvedForAutoApply)]
     ); res.status(201).json({ answer: result.rows[0] });
+}));
+
+app.delete('/api/jobs/answer-library/:id', requireAuth, asyncRoute(async (req, res) => {
+    await pool.query('DELETE FROM job_answer_library WHERE id=$1 AND username=$2', [req.params.id, req.jobUsername]);
+    res.json({ ok: true });
+}));
+
+const FOCUS_STAGES = new Set(['saved', 'preparing', 'applied', 'recruiter_contact', 'interview', 'offer']);
+app.get('/api/jobs/focus', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query(
+        `SELECT f.job_id AS id,f.priority,f.stage,f.next_follow_up AS "nextFollowUp",f.contact_name AS "contactName",
+         f.contact_method AS "contactMethod",f.notes,p.title,p.company,p.location,p.apply_url AS "applyUrl",
+         a.id AS "applicationId",a.status AS "applicationStatus",
+         (SELECT count(*)::int FROM job_interview_prep t WHERE t.username=f.username AND t.job_id=f.job_id) AS "prepTotal",
+         (SELECT count(*)::int FROM job_interview_prep t WHERE t.username=f.username AND t.job_id=f.job_id AND t.completed=true) AS "prepCompleted"
+         FROM job_focus_plans f JOIN job_postings p ON p.id=f.job_id
+         LEFT JOIN job_applications a ON a.username=f.username AND a.job_id=f.job_id
+         WHERE f.username=$1 ORDER BY f.priority DESC,f.next_follow_up NULLS LAST,f.updated_at DESC`,
+        [req.jobUsername]
+    );
+    res.json({ jobs: result.rows });
+}));
+
+app.put('/api/jobs/focus/:jobId', requireAuth, asyncRoute(async (req, res) => {
+    const found = await pool.query('SELECT title,company,apply_url FROM job_postings WHERE id=$1', [req.params.jobId]);
+    if (!found.rows.length) return res.status(404).json({ error: 'Job not found.' });
+    const stage = FOCUS_STAGES.has(req.body?.stage) ? req.body.stage : 'saved';
+    const priority = Math.min(3, Math.max(1, Number(req.body?.priority || 1)));
+    const nextFollowUp = req.body?.nextFollowUp && !Number.isNaN(Date.parse(req.body.nextFollowUp)) ? req.body.nextFollowUp : null;
+    const result = await pool.query(
+        `INSERT INTO job_focus_plans(username,job_id,priority,stage,next_follow_up,contact_name,contact_method,notes)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(username,job_id) DO UPDATE SET priority=$3,stage=$4,
+         next_follow_up=$5,contact_name=$6,contact_method=$7,notes=$8,updated_at=now()
+         RETURNING job_id AS id,priority,stage,next_follow_up AS "nextFollowUp"`,
+        [req.jobUsername, req.params.jobId, priority, stage, nextFollowUp,
+            String(req.body?.contactName || '').trim().slice(0, 200) || null,
+            String(req.body?.contactMethod || '').trim().slice(0, 500) || null,
+            String(req.body?.notes || '').trim().slice(0, 5000) || null]
+    );
+    await pool.query('INSERT INTO job_saved_jobs(username,job_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [req.jobUsername, req.params.jobId]);
+    if (nextFollowUp) {
+        await notifyUser(req.jobUsername, 'follow_up', `Follow up: ${found.rows[0].title}`, `${found.rows[0].company || 'Employer'} · planned for ${new Date(nextFollowUp).toLocaleString()}`, found.rows[0].apply_url);
+    }
+    res.json({ focus: result.rows[0] });
+}));
+
+app.delete('/api/jobs/focus/:jobId', requireAuth, asyncRoute(async (req, res) => {
+    await pool.query('DELETE FROM job_focus_plans WHERE username=$1 AND job_id=$2', [req.jobUsername, req.params.jobId]);
+    res.json({ ok: true });
+}));
+
+app.post('/api/jobs/focus/:jobId/follow-up', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query(
+        `UPDATE job_focus_plans SET stage='recruiter_contact',next_follow_up=NULL,updated_at=now()
+         WHERE username=$1 AND job_id=$2 RETURNING job_id`, [req.jobUsername, req.params.jobId]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Focused job not found.' });
+    res.json({ ok: true });
+}));
+
+app.get('/api/jobs/focus/:jobId/prep', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query(
+        'SELECT id,category,title,completed FROM job_interview_prep WHERE username=$1 AND job_id=$2 ORDER BY id',
+        [req.jobUsername, req.params.jobId]
+    );
+    res.json({ tasks: result.rows });
+}));
+
+app.post('/api/jobs/focus/:jobId/prep', requireAuth, asyncRoute(async (req, res) => {
+    const job = await pool.query('SELECT title,company FROM job_postings WHERE id=$1', [req.params.jobId]);
+    if (!job.rows.length) return res.status(404).json({ error: 'Job not found.' });
+    const tasks = [
+        ['research', `Research ${job.rows[0].company || 'the company'}, product, customers, and recent news`],
+        ['requirements', `Map your verified experience to the key requirements for ${job.rows[0].title}`],
+        ['stories', 'Prepare five concise STAR stories with measurable outcomes'],
+        ['technical', 'Practice the role-specific technical topics and one realistic exercise'],
+        ['questions', 'Write thoughtful questions for the recruiter, hiring manager, and team'],
+        ['practice', 'Complete a timed mock interview and improve weak answers'],
+        ['logistics', 'Confirm format, time zone, location or video link, and interviewer names'],
+    ];
+    for (const [category, title] of tasks) {
+        await pool.query(
+            'INSERT INTO job_interview_prep(username,job_id,category,title) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',
+            [req.jobUsername, req.params.jobId, category, title]
+        );
+    }
+    const result = await pool.query('SELECT id,category,title,completed FROM job_interview_prep WHERE username=$1 AND job_id=$2 ORDER BY id', [req.jobUsername, req.params.jobId]);
+    res.status(201).json({ tasks: result.rows });
+}));
+
+app.patch('/api/jobs/prep/:id', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query(
+        'UPDATE job_interview_prep SET completed=$3 WHERE id=$1 AND username=$2 RETURNING id,completed',
+        [req.params.id, req.jobUsername, Boolean(req.body?.completed)]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Preparation task not found.' });
+    res.json({ task: result.rows[0] });
 }));
 
 app.post('/api/jobs/reports', requireAuth, asyncRoute(async (req, res) => {
