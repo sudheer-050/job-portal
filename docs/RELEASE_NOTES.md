@@ -1,10 +1,16 @@
 # Release notes
 
-**Document version:** 3.2.0
+**Document version:** 3.2.1
 
 **Level:** Stable
 
 **Last reviewed:** 2026-09-29
+
+## 3.2.1 — Product capability guide
+
+- Added clear What's New and What It Can Do sections to the GitHub README.
+- Added an in-product capability overview covering discovery, AI preparation, organization, and interview readiness.
+- Clarified which workflow stages are operational and which require the external submission runner.
 
 ## 3.2.0 — Unified violet visual system
 

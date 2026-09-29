@@ -1,6 +1,6 @@
 # Job Portal
 
-**Product version:** 3.2.0
+**Product version:** 3.2.1
 
 **Release level:** Stable
 
@@ -10,6 +10,45 @@ A self-hosted job discovery application that collects postings from multiple
 public job APIs and employer applicant-tracking systems, then ranks them against
 each user's desired roles, location, work style, salary range, and private
 resume.
+
+**Live portal:** [myhai.org/jobs](https://myhai.org/jobs)
+
+**Versions & updates:** [myhai.org/jobs/updates](https://myhai.org/jobs/updates)
+
+## What's new in v3.2
+
+- One consistent charcoal, zinc, and violet visual system across the portal and version center
+- A collapsible workspace sidebar that separates Discover, Focus, Applications, Profile, Interviews, Alerts, and Inbox
+- A main-area profile and resume editor with responsive desktop and mobile layouts
+- Focused-job follow-up planning and a seven-step interview preparation roadmap
+- An Action Center for application tasks, interview reminders, offer deadlines, and verified employer links
+
+## What it can do
+
+### Discover and prioritize jobs
+
+- Collect jobs from public APIs and direct employer applicant-tracking systems
+- Rank jobs against role, location, work style, salary, experience, education, sponsorship, skills, and resume content
+- Explain match strengths and preference gaps
+- Save, hide, report, focus, and revisit jobs and searches
+
+### Prepare stronger applications
+
+- Store a private source resume and structured candidate profile
+- Ask Hagent to tailor a resume and cover letter to a selected job
+- Run an independent truthfulness and quality review before submission
+- Use only candidate-approved screening answers in automatic workflows
+
+### Manage the complete search
+
+- Track preparing, ready, action-required, and applied applications
+- Maintain follow-up dates, recruiter/contact notes, interviews, events, offers, and company research
+- Surface in-portal alerts and employer application links
+- Preserve document revisions, application events, quality scores, and confirmation references
+
+### Know the automation boundary
+
+The portal can discover, tailor, verify, organize, and prepare applications today. Real third-party auto-submission additionally requires a configured submission runner and authenticated portal sessions. CAPTCHA, missing legal answers, and unsupported sites stop at **Action Required** rather than being reported as successfully submitted.
 
 ## Features
 
