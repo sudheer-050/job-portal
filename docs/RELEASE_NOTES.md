@@ -1,10 +1,16 @@
 # Release notes
 
-**Document version:** 3.1.2
+**Document version:** 3.2.0
 
 **Level:** Stable
 
 **Last reviewed:** 2026-09-29
+
+## 3.2.0 — Unified violet visual system
+
+- Applied the Versions & Updates page's charcoal, zinc, and violet design system across the full portal.
+- Unified backgrounds, glass surfaces, cards, borders, inputs, buttons, active navigation, and scrollbars.
+- Adjusted violet controls to use dark foreground text for stronger contrast and readability.
 
 ## 3.1.2 — Main profile workspace
 
