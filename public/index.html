@@ -47,6 +47,10 @@
         header a.brand img { width: 22px; height: 22px; border-radius: 6px; }
         header a.brand .tag { color: var(--text-muted); font-weight: 600; }
         header a.brand .tag::before { content: '/'; margin: 0 7px; color: var(--border-color); font-weight: 400; }
+        .version-badge { color:var(--accent-brand); background:var(--accent-brand-soft); border:1px solid rgba(155,138,251,.25); border-radius:999px; padding:3px 8px; font-size:10px; font-weight:800; }
+        .header-actions { display:flex; align-items:center; gap:12px; }
+        .updates-link { color:var(--text-muted); text-decoration:none; font-size:12.5px; font-weight:700; }
+        .updates-link:hover { color:var(--accent-brand); }
         .user-pill { display: none; align-items: center; gap: 10px; }
         .user-pill .avatar {
             width: 30px; height: 30px; border-radius: 50%; background: var(--accent-brand);
@@ -274,11 +278,14 @@
 </head>
 <body>
     <header>
-        <a href="/" class="brand">Job<span class="tag">Portal</span></a>
-        <div class="user-pill" id="userPill">
-            <div class="avatar" id="userAvatar"></div>
-            <span class="name" id="welcomeUsername"></span>
-            <button id="logoutBtn">Log out</button>
+        <a href="/" class="brand">Job<span class="tag">Portal</span><span class="version-badge" id="appVersion">v2.0.0</span></a>
+        <div class="header-actions">
+            <a class="updates-link" href="/updates">What's new</a>
+            <div class="user-pill" id="userPill">
+                <div class="avatar" id="userAvatar"></div>
+                <span class="name" id="welcomeUsername"></span>
+                <button id="logoutBtn">Log out</button>
+            </div>
         </div>
     </header>
 
@@ -425,7 +432,7 @@
 
             <div class="main-col">
                 <nav class="product-nav" aria-label="Job portal sections">
-                    <a href="#matches">Job matches</a><a href="#applications">Applications</a><a href="#messages">Messages</a><a href="#profile">Profile &amp; documents</a>
+                    <a href="#matches">Job matches</a><a href="#applications">Applications</a><a href="#messages">Messages</a><a href="#profile">Profile &amp; documents</a><a href="/updates">Versions &amp; updates</a>
                 </nav>
                 <div class="card application-panel" id="applications">
                     <h2>Application tracker</h2>
@@ -496,6 +503,10 @@
             if (!res.ok) throw new Error(data.error || 'Something went wrong.');
             return data;
         }
+
+        api('/api/jobs/meta').then(meta => {
+            document.getElementById('appVersion').textContent = `v${meta.version}`;
+        }).catch(() => {});
 
         /* ---- Auth ---- */
         const loginTabBtn = document.getElementById('loginTabBtn');
@@ -715,7 +726,7 @@
             try {
                 const data = await api('/api/jobs/resume');
                 if (data.resume) {
-                    resumeStatus.innerHTML = `${ICON_CHECK}<span>Resume on file${data.resume.originalFilename ? ' (' + escapeHtml(data.resume.originalFilename) + ')' : ''} — ${data.resume.length.toLocaleString()} characters</span>`;
+                    resumeStatus.innerHTML = `${ICON_CHECK}<span>Resume v${data.resume.version || 1} on file${data.resume.originalFilename ? ' (' + escapeHtml(data.resume.originalFilename) + ')' : ''} — ${data.resume.length.toLocaleString()} characters</span>`;
                     resumeStatus.classList.add('has-resume');
                 } else {
                     resumeStatus.innerHTML = '<span>No resume uploaded yet.</span>';
@@ -781,7 +792,8 @@
                     ${item.error ? `<div class="error-msg" style="display:block">${escapeHtml(item.error)}</div>` : ''}
                     ${item.requires_login ? '<div class="source-status">Your login is required on the employer portal.</div>' : ''}
                     <div class="application-actions">
-                        ${item.tailored_resume ? `<a class="btn btn-ghost" href="/api/jobs/applications/${item.id}/resume">Download tailored resume</a>` : ''}
+                        ${item.tailored_resume ? `<a class="btn btn-ghost" href="/api/jobs/applications/${item.id}/resume">Resume v${item.resume_version || 1}</a>` : ''}
+                        ${item.cover_letter ? `<a class="btn btn-ghost" href="/api/jobs/applications/${item.id}/cover-letter">Cover letter v${item.cover_letter_version || 1}</a>` : ''}
                         <a class="btn btn-ghost" href="${escapeHtml(item.applyUrl)}" target="_blank" rel="noopener noreferrer">Open application / track</a>
                         ${item.status === 'ready_to_submit' ? `<button class="btn btn-primary" data-submit-application="${item.id}">Submit now</button>` : ''}
                         ${item.status === 'action_required' ? `<button class="btn btn-primary" data-mark-applied="${item.id}">I finished it</button>` : ''}

@@ -1,5 +1,11 @@
 # Job Portal
 
+**Product version:** 2.0.0
+
+**Release level:** Stable
+
+**Last reviewed:** 2026-09-29
+
 A self-hosted job discovery application that collects postings from multiple
 public job APIs and employer applicant-tracking systems, then ranks them against
 each user's desired roles, location, work style, salary range, and private
@@ -26,6 +32,8 @@ resume.
 
 Provider documentation and attribution are recorded in
 [Job data sources and citations](docs/JOB_SOURCES.md).
+Release history and document-control rules are recorded in
+[Release notes](docs/RELEASE_NOTES.md) and [Versioning](docs/VERSIONING.md).
 
 ## Run locally
 

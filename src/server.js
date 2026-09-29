@@ -10,6 +10,7 @@ const { rateLimit } = require('express-rate-limit');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const { createJobService } = require('./jobs/service');
+const { version: APP_VERSION } = require('../package.json');
 
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? null : 'development-only-secret-change-me');
@@ -79,8 +80,10 @@ const ready = (async () => {
             username VARCHAR(20) PRIMARY KEY REFERENCES job_users(username) ON DELETE CASCADE,
             resume_text TEXT NOT NULL,
             original_filename TEXT,
+            version INTEGER NOT NULL DEFAULT 1,
             uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
+        ALTER TABLE resumes ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;
         ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS full_name TEXT;
         ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS phone TEXT;
         ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS city TEXT;
@@ -117,6 +120,8 @@ const ready = (async () => {
             reviewer_issue_id TEXT,
             tailored_resume TEXT,
             cover_letter TEXT,
+            resume_version INTEGER NOT NULL DEFAULT 1,
+            cover_letter_version INTEGER NOT NULL DEFAULT 1,
             quality_score SMALLINT,
             quality_verdict VARCHAR(12),
             quality_notes TEXT,
@@ -133,6 +138,8 @@ const ready = (async () => {
         ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS submission_mode VARCHAR(16) NOT NULL DEFAULT 'auto';
         ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS submission_provider TEXT;
         ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS confirmation_reference TEXT;
+        ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS resume_version INTEGER NOT NULL DEFAULT 1;
+        ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS cover_letter_version INTEGER NOT NULL DEFAULT 1;
         CREATE INDEX IF NOT EXISTS job_applications_user_status_idx
             ON job_applications (username, status, updated_at DESC);
         CREATE TABLE IF NOT EXISTS job_application_events (
@@ -388,6 +395,24 @@ app.get('/health', async (_req, res) => {
     }
 });
 
+app.get('/api/jobs/meta', (_req, res) => res.json({
+    name: 'Job Portal',
+    version: APP_VERSION,
+    level: 'stable',
+    releasedAt: '2026-09-29',
+    documents: [
+        { name: 'Product guide', version: APP_VERSION, level: 'stable', path: '/jobs#profile' },
+        { name: 'Release notes', version: APP_VERSION, level: 'stable', path: '/updates' },
+        { name: 'Job source registry', version: '1.1.0', level: 'controlled', path: '/updates#documents' },
+        { name: 'Application automation policy', version: '1.0.0', level: 'controlled', path: '/updates#documents' },
+        { name: 'Submission runner', version: '0.1.0', level: 'beta', path: '/updates#known-limitations' },
+    ],
+}));
+
+app.get(['/updates', '/updates/'], (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'updates.html'));
+});
+
 app.get(['/jobs', '/jobs/'], (_req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
@@ -555,8 +580,9 @@ app.post('/api/jobs/resume', requireAuth, resumeUpload.single('resume'), async (
         if (!text) return res.status(400).json({ error: 'The resume contains no readable text.' });
         if (text.length > 200000) return res.status(400).json({ error: 'Resume text is too long.' });
         await pool.query(
-            `INSERT INTO resumes (username,resume_text,original_filename) VALUES ($1,$2,$3)
-             ON CONFLICT (username) DO UPDATE SET resume_text=$2,original_filename=$3,uploaded_at=now()`,
+            `INSERT INTO resumes (username,resume_text,original_filename,version) VALUES ($1,$2,$3,1)
+             ON CONFLICT (username) DO UPDATE SET resume_text=$2,original_filename=$3,
+                 version=resumes.version+1,uploaded_at=now()`,
             [req.jobUsername, text, filename]
         );
         res.json({ ok: true, length: text.length });
@@ -568,7 +594,7 @@ app.post('/api/jobs/resume', requireAuth, resumeUpload.single('resume'), async (
 
 app.get('/api/jobs/resume', requireAuth, asyncRoute(async (req, res) => {
     const result = await pool.query(
-        'SELECT original_filename AS "originalFilename",uploaded_at AS "uploadedAt",length(resume_text)::int AS length FROM resumes WHERE username=$1',
+        'SELECT original_filename AS "originalFilename",version,uploaded_at AS "uploadedAt",length(resume_text)::int AS length FROM resumes WHERE username=$1',
         [req.jobUsername]
     );
     res.json({ resume: result.rows[0] || null });
@@ -647,7 +673,7 @@ app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
         }
     }
     rows = (await pool.query(
-        `SELECT a.id,a.job_id,a.status,a.tailored_resume,a.cover_letter,a.quality_score,a.quality_verdict,
+        `SELECT a.id,a.job_id,a.status,a.tailored_resume,a.cover_letter,a.resume_version,a.cover_letter_version,a.quality_score,a.quality_verdict,
                 a.quality_notes,a.requires_login,a.submission_mode,a.submission_provider,a.confirmation_reference,
                 a.error,a.created_at,a.updated_at,a.applied_at,
                 p.title,p.company,p.location,p.apply_url AS "applyUrl",p.source
@@ -696,11 +722,20 @@ app.post('/api/jobs/applications/:id/applied', requireAuth, asyncRoute(async (re
 
 app.get('/api/jobs/applications/:id/resume', requireAuth, asyncRoute(async (req, res) => {
     const result = await pool.query(
-        'SELECT tailored_resume FROM job_applications WHERE id=$1 AND username=$2',
+        'SELECT tailored_resume,resume_version FROM job_applications WHERE id=$1 AND username=$2',
         [req.params.id, req.jobUsername]
     );
     if (!result.rows.length || !result.rows[0].tailored_resume) return res.status(404).json({ error: 'Tailored resume is not ready.' });
-    res.type('text/markdown').attachment(`tailored-resume-${req.params.id}.md`).send(result.rows[0].tailored_resume);
+    res.type('text/markdown').attachment(`tailored-resume-${req.params.id}-v${result.rows[0].resume_version}.md`).send(result.rows[0].tailored_resume);
+}));
+
+app.get('/api/jobs/applications/:id/cover-letter', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query(
+        'SELECT cover_letter,cover_letter_version FROM job_applications WHERE id=$1 AND username=$2',
+        [req.params.id, req.jobUsername]
+    );
+    if (!result.rows.length || !result.rows[0].cover_letter) return res.status(404).json({ error: 'Cover letter is not ready.' });
+    res.type('text/markdown').attachment(`cover-letter-${req.params.id}-v${result.rows[0].cover_letter_version}.md`).send(result.rows[0].cover_letter);
 }));
 
 app.get('/api/jobs/messages', requireAuth, asyncRoute(async (req, res) => {

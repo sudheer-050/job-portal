@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Versions & Updates · Job Portal</title>
+  <meta name="description" content="Job Portal release notes, document versions, maturity levels, and known limitations.">
+  <style>
+    :root{color-scheme:dark;--bg:#09090b;--card:#16161a;--line:#27272a;--soft:#1f1f23;--text:#fafafa;--muted:#a1a1aa;--faint:#71717a;--brand:#9b8afb;--brand-soft:rgba(155,138,251,.14);--green:#4ade80;--amber:#fbbf24}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;line-height:1.55}
+    header{position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;padding:15px 28px;background:rgba(9,9,11,.9);border-bottom:1px solid var(--soft);backdrop-filter:blur(10px)}
+    a{color:inherit}.brand{text-decoration:none;font-weight:800}.brand span{color:var(--muted);font-weight:600}.back{color:var(--muted);text-decoration:none;font-size:13px;font-weight:700}.back:hover{color:var(--brand)}
+    main{width:min(940px,calc(100% - 32px));margin:52px auto 80px}.eyebrow{color:var(--brand);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.12em}.hero h1{font-size:clamp(32px,6vw,58px);line-height:1.05;letter-spacing:-.045em;margin:12px 0}.hero p{color:var(--muted);max-width:700px;font-size:17px}.release{margin:32px 0;display:flex;gap:10px;flex-wrap:wrap}.pill{border:1px solid var(--line);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:800}.stable{color:var(--green);background:rgba(74,222,128,.1)}.beta{color:var(--amber);background:rgba(251,191,36,.1)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:28px 0}.card{background:var(--card);border:1px solid var(--soft);border-radius:18px;padding:22px}.card h2{font-size:17px;margin:0 0 10px}.card p,.card li{color:var(--muted);font-size:14px}.card ul{padding-left:20px;margin-bottom:0}.wide{grid-column:1/-1}
+    table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:13px 10px;border-bottom:1px solid var(--soft)}th{color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:.08em}td{color:var(--muted)}td:first-child{color:var(--text);font-weight:700}.level{font-size:10px;text-transform:uppercase;font-weight:900;letter-spacing:.06em}
+    .timeline{border-left:1px solid var(--line);padding-left:24px}.timeline article{position:relative;margin:0 0 30px}.timeline article:before{content:"";position:absolute;left:-29px;top:7px;width:9px;height:9px;background:var(--brand);border-radius:50%;box-shadow:0 0 0 5px var(--brand-soft)}.timeline h3{margin:0}.timeline time{color:var(--faint);font-size:12px}.timeline p{color:var(--muted)}
+    code{font-family:ui-monospace,monospace;color:var(--brand)}footer{color:var(--faint);font-size:12px;margin-top:40px}@media(max-width:700px){header{padding:14px 16px}.grid{grid-template-columns:1fr}.wide{grid-column:auto}table{display:block;overflow-x:auto}}
+  </style>
+</head>
+<body>
+  <header><a class="brand" href="/jobs">Job<span>/Portal</span></a><a class="back" href="/jobs">← Back to portal</a></header>
+  <main>
+    <section class="hero">
+      <div class="eyebrow">Document control center</div>
+      <h1>Versions &amp; updates</h1>
+      <p>One place to see what changed, which capabilities are stable, and the exact version of every controlled product document.</p>
+      <div class="release"><span class="pill stable">v2.0.0 · Stable</span><span class="pill">Released September 29, 2026</span><span class="pill">Commit aa31aab</span></div>
+    </section>
+
+    <section class="grid">
+      <article class="card"><h2>Version levels</h2><p><strong>Major</strong> versions change workflows or data structures. <strong>Minor</strong> versions add compatible features. <strong>Patch</strong> versions contain compatible fixes.</p></article>
+      <article class="card"><h2>Maturity levels</h2><p><span class="level stable">Stable</span> is production-ready. <span class="level">Controlled</span> is reviewed documentation. <span class="level beta">Beta</span> works behind an integration boundary and may require manual action.</p></article>
+
+      <article class="card wide" id="documents">
+        <h2>Controlled documents</h2>
+        <table><thead><tr><th>Document</th><th>Version</th><th>Level</th><th>Last reviewed</th></tr></thead><tbody>
+          <tr><td>Job Portal product guide</td><td>2.0.0</td><td><span class="level stable">Stable</span></td><td>Sep 29, 2026</td></tr>
+          <tr><td>Release notes</td><td>2.0.0</td><td><span class="level stable">Stable</span></td><td>Sep 29, 2026</td></tr>
+          <tr><td>Job source registry</td><td>1.1.0</td><td><span class="level">Controlled</span></td><td>Sep 29, 2026</td></tr>
+          <tr><td>Application automation policy</td><td>1.0.0</td><td><span class="level">Controlled</span></td><td>Sep 29, 2026</td></tr>
+          <tr><td>Submission runner contract</td><td>0.1.0</td><td><span class="level beta">Beta</span></td><td>Sep 29, 2026</td></tr>
+        </tbody></table>
+      </article>
+
+      <article class="card wide">
+        <h2>Candidate document revisions</h2>
+        <p>Source resumes, tailored resumes, and cover letters display their own revision. Uploading a new source resume increments its version automatically. Generated application documents retain the version submitted to the employer for auditability.</p>
+      </article>
+    </section>
+
+    <section class="timeline">
+      <article><h3>v2.0.0 — Application operating system</h3><time>September 29, 2026 · Stable</time><p>Added full candidate profiles, Auto/Hybrid/Review modes, Hagent resume tailoring, independent quality review, application tracking, messages, notifications, audit events, confirmation references, and controlled document versions.</p></article>
+      <article><h3>v1.1.0 — Multi-source job discovery</h3><time>September 23, 2026 · Stable</time><p>Added normalized job aggregation, direct ATS sources, preference-aware ranking, provider status, deduplication, and freshness handling.</p></article>
+      <article><h3>v1.0.0 — Initial portal</h3><time>September 22, 2026 · Archived</time><p>Introduced accounts, saved roles and locations, private resume storage, and ranked job recommendations.</p></article>
+    </section>
+
+    <section class="card" id="known-limitations">
+      <h2>Known limitations in v2.0.0</h2>
+      <ul><li>Automatic external submission requires a configured ATS/browser submission runner.</li><li>Login, CAPTCHA, unsupported portals, and unanswered legal questions remain Action Required.</li><li>An application is marked Applied only after a real confirmation reference or explicit user confirmation.</li></ul>
+    </section>
+    <footer>Job Portal document register · Product v2.0.0 · This page is the authoritative in-product release record.</footer>
+  </main>
+</body>
+</html>

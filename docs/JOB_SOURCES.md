@@ -1,5 +1,11 @@
 # Job data sources and citations
 
+**Document version:** 1.1.0
+
+**Level:** Controlled
+
+**Last reviewed:** 2026-09-29
+
 The Job Portal normalizes job advertisements from the sources below. Every
 result retains its provider name and original application URL in the user
 interface. Operators are responsible for following each provider's current
