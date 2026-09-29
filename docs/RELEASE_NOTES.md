@@ -1,10 +1,16 @@
 # Release notes
 
-**Document version:** 3.1.1
+**Document version:** 3.1.2
 
 **Level:** Stable
 
 **Last reviewed:** 2026-09-29
+
+## 3.1.2 — Main profile workspace
+
+- Moved the complete profile and resume experience from beneath the navigation into the main workspace.
+- Extended the glass navigation sidebar to the full available screen height.
+- Added a responsive two-column profile/resume layout that stacks cleanly on narrower screens.
 
 ## 3.1.1 — Focused workspace navigation
 

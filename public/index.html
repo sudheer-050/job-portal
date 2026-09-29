@@ -149,15 +149,18 @@
         @media (max-width: 860px) { .app-shell { grid-template-columns: 1fr; } }
         .sidebar {
             position: sticky; top: 78px; display: flex; flex-direction: column;
-            max-height: calc(100vh - 96px); overflow-y: auto; overscroll-behavior: contain;
-            scrollbar-gutter: stable; padding-right: 6px;
+            min-height: calc(100vh - 96px); max-height: calc(100vh - 96px); overflow-y: auto; overscroll-behavior: contain;
+            scrollbar-gutter: stable; padding:10px;
+            background:linear-gradient(180deg,rgba(14,27,45,.9),rgba(9,21,37,.76));
+            border:1px solid var(--border-color-soft); border-radius:var(--radius-lg);
+            box-shadow:0 20px 60px rgba(0,0,0,.14); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
         }
         @media (max-width: 860px) {
-            .sidebar { position: static; max-height: none; overflow: visible; padding-right: 0; }
+            .sidebar { position: static; min-height:0; max-height: none; overflow: visible; padding:10px; }
             .app-shell.menu-collapsed { grid-template-columns:1fr; }
         }
         [hidden] { display:none !important; }
-        .workspace-menu { background:rgba(14,27,45,.82); border:1px solid var(--border-color-soft); border-radius:var(--radius-lg); padding:10px; margin-bottom:14px; backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
+        .workspace-menu { background:transparent; border:0; border-radius:var(--radius-lg); padding:0; margin:0; }
         .workspace-menu-toggle { width:100%; display:flex; align-items:center; gap:11px; border:0; background:transparent; color:var(--text-normal); padding:9px 10px; border-radius:10px; cursor:pointer; font:700 13px var(--font-stack); }
         .workspace-menu-toggle:hover { background:var(--glass-weak); }
         .hamburger { width:19px; display:grid; gap:4px; flex:none; }
@@ -172,6 +175,8 @@
         .workspace-view-title { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin:0 0 18px; }
         .workspace-view-title h2 { margin:0; font-size:20px; }
         .workspace-view-title p { margin:4px 0 0; color:var(--text-muted); font-size:13px; }
+        .profile-workspace { display:grid; grid-template-columns:minmax(0,2fr) minmax(280px,1fr); gap:16px; margin-bottom:16px; align-items:start; }
+        .profile-workspace .card + .card { margin-top:0; }
 
         .role-chip {
             display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04);
@@ -310,6 +315,7 @@
         .btn-small { padding:7px 11px; font-size:11.5px; }
         .check-row { display:flex; align-items:center; gap:8px; color:var(--text-muted); font-size:13px; }
         .check-row input { width:18px; height:18px; accent-color:var(--accent-brand); }
+        @media(max-width:1100px){.profile-workspace{grid-template-columns:1fr}}
         @media(max-width:900px){.summary-grid{grid-template-columns:repeat(3,1fr)}.feature-grid{grid-template-columns:1fr}.feature-card.wide{grid-column:auto}.workspace-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
         @media(max-width:620px){.summary-grid{grid-template-columns:repeat(2,1fr)}.compact-form{grid-template-columns:1fr}.compact-form .wide{grid-column:auto}.job-card-footer{align-items:flex-start;gap:12px}.job-quick-actions{justify-content:flex-start}}
 
@@ -324,7 +330,7 @@
 </head>
 <body>
     <header>
-        <a href="/jobs" class="brand">Job<span class="tag">Portal</span><span class="version-badge" id="appVersion">v3.1.1</span></a>
+        <a href="/jobs" class="brand">Job<span class="tag">Portal</span><span class="version-badge" id="appVersion">v3.1.2</span></a>
         <div class="header-actions">
             <a class="updates-link" href="/jobs/updates">What's new</a>
             <div class="user-pill" id="userPill">
@@ -479,7 +485,7 @@
                     <div class="error-msg" id="prefError"></div>
                 </div>
 
-                <div class="card" data-workspace-view="profile">
+                <div class="card" id="resumeCard" data-workspace-view="profile">
                     <h2>Your resume</h2>
                     <p class="hint">Optional, but matches get noticeably better with it — only you can ever see it.</p>
                     <label for="resumeFile">Upload a PDF</label>
@@ -495,6 +501,7 @@
 
             <div class="main-col">
                 <div class="workspace-view-title"><div><h2 id="workspaceViewTitle">Discover jobs</h2><p id="workspaceViewSubtitle">Search, shortlist, and act on your strongest matches.</p></div></div>
+                <section class="profile-workspace" id="profileWorkspace" data-workspace-view="profile"></section>
                 <section class="feature-grid" id="featureGrid">
                     <article class="feature-card" id="saved" data-workspace-view="discover">
                         <h2>Saved jobs</h2><p class="hint">Your shortlist stays separate from applications.</p>
@@ -575,6 +582,10 @@
         const appView = document.getElementById('appView');
         const userPill = document.getElementById('userPill');
         const logoutBtn = document.getElementById('logoutBtn');
+        document.getElementById('profileWorkspace').append(
+            document.getElementById('profile'),
+            document.getElementById('resumeCard')
+        );
 
         const ICON_LOCATION = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>';
         const ICON_REMOTE = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>';
