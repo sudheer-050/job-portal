@@ -402,14 +402,14 @@ app.get('/api/jobs/meta', (_req, res) => res.json({
     releasedAt: '2026-09-29',
     documents: [
         { name: 'Product guide', version: APP_VERSION, level: 'stable', path: '/jobs#profile' },
-        { name: 'Release notes', version: APP_VERSION, level: 'stable', path: '/updates' },
-        { name: 'Job source registry', version: '1.1.0', level: 'controlled', path: '/updates#documents' },
-        { name: 'Application automation policy', version: '1.0.0', level: 'controlled', path: '/updates#documents' },
-        { name: 'Submission runner', version: '0.1.0', level: 'beta', path: '/updates#known-limitations' },
+        { name: 'Release notes', version: APP_VERSION, level: 'stable', path: '/jobs/updates' },
+        { name: 'Job source registry', version: '1.1.0', level: 'controlled', path: '/jobs/updates#documents' },
+        { name: 'Application automation policy', version: '1.0.0', level: 'controlled', path: '/jobs/updates#documents' },
+        { name: 'Submission runner', version: '0.1.0', level: 'beta', path: '/jobs/updates#known-limitations' },
     ],
 }));
 
-app.get(['/updates', '/updates/'], (_req, res) => {
+app.get(['/updates', '/updates/', '/jobs/updates', '/jobs/updates/'], (_req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'updates.html'));
 });
 

@@ -1,10 +1,14 @@
 # Release notes
 
-**Document version:** 2.0.0
+**Document version:** 2.0.1
 
 **Level:** Stable
 
 **Last reviewed:** 2026-09-29
+
+## 2.0.1 — Public version-center route
+
+- Published the version register under `/jobs/updates` so it follows the production portal routing boundary.
 
 ## 2.0.0 — Application operating system
 

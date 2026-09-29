@@ -1,6 +1,6 @@
 # Job Portal
 
-**Product version:** 2.0.0
+**Product version:** 2.0.1
 
 **Release level:** Stable
 
