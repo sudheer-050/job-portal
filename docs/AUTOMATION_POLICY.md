@@ -1,6 +1,6 @@
 # Application automation policy
 
-**Document version:** 1.0.0
+**Document version:** 1.1.0
 
 **Level:** Controlled
 
@@ -9,3 +9,5 @@
 The portal may prepare and submit an application only from candidate-provided facts. It must not invent experience, qualifications, demographic answers, work authorization, or screening responses.
 
 Automatic submission requires a passing independent quality review and a supported submission connector. Login prompts, CAPTCHAs, unsupported systems, and unanswered legal or screening questions stop at **Action Required**. A submission is recorded as **Applied** only after a real employer confirmation reference or explicit user confirmation.
+
+Candidate answers enter automatic applications only when the candidate explicitly marks the answer as approved for auto-apply. Editing the answer removes no audit history from existing applications.

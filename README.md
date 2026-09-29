@@ -1,6 +1,6 @@
 # Job Portal
 
-**Product version:** 2.0.1
+**Product version:** 3.0.0
 
 **Release level:** Stable
 
@@ -27,6 +27,9 @@ resume.
 - Hagent resume tailoring followed by a separate, truthfulness-first quality review
 - Preparing, action-required, and applied-job tracking with an auditable event history
 - Central message, recruiter-update, and notification APIs
+- Saved and hidden jobs, reusable searches, configurable alerts, and career dashboard analytics
+- Structured experience, education, certifications, projects, languages, interviews, and offer tracking
+- Candidate-approved screening-answer library for truthful auto-apply completion
 - Submission-runner integration that requires a real employer confirmation before marking Applied
 - Docker Compose deployment with PostgreSQL
 

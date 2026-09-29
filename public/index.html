@@ -8,17 +8,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-main: #09090b;
-            --bg-card: #16161a;
-            --bg-card-hover: #1c1c21;
-            --accent-brand: #9B8AFB;
-            --accent-brand-hover: #8171E8;
-            --accent-brand-soft: rgba(155, 138, 251, 0.14);
-            --text-normal: #fafafa;
-            --text-muted: #a1a1aa;
-            --text-faint: #71717a;
-            --border-color: #27272a;
-            --border-color-soft: #1f1f23;
+            --bg-main: #07111f;
+            --bg-card: #0e1b2d;
+            --bg-card-hover: #13243a;
+            --accent-brand: #5eead4;
+            --accent-brand-hover: #2dd4bf;
+            --accent-brand-soft: rgba(94, 234, 212, 0.12);
+            --text-normal: #f7fbff;
+            --text-muted: #a9b8ca;
+            --text-faint: #718198;
+            --border-color: #28405e;
+            --border-color-soft: #1a304a;
             --glass-weak: rgba(255, 255, 255, 0.05);
             --accent-green: #4ade80;
             --accent-green-soft: rgba(74, 222, 128, 0.14);
@@ -32,16 +32,17 @@
         }
         * { box-sizing: border-box; }
         body {
-            margin: 0; font-family: var(--font-stack); background: var(--bg-main);
+            margin: 0; font-family: var(--font-stack); background: radial-gradient(circle at 8% -10%,rgba(94,234,212,.12),transparent 30%),radial-gradient(circle at 95% 0,rgba(122,167,255,.12),transparent 28%),var(--bg-main);
             color: var(--text-normal); min-height: 100vh; -webkit-font-smoothing: antialiased;
         }
         a { color: inherit; }
+        :focus-visible { outline: 3px solid #fbbf24; outline-offset: 3px; }
 
         header {
             position: sticky; top: 0; z-index: 10;
             display: flex; align-items: center; justify-content: space-between;
             padding: 14px 28px; border-bottom: 1px solid var(--border-color-soft);
-            background: rgba(9, 9, 11, 0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            background: rgba(7, 17, 31, 0.88); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
         }
         header a.brand { display: flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 800; font-size: 15.5px; letter-spacing: -0.01em; }
         header a.brand img { width: 22px; height: 22px; border-radius: 6px; }
@@ -88,7 +89,7 @@
 
         label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: 0.03em; }
         label:first-of-type { margin-top: 0; }
-        input[type="text"], input[type="email"], input[type="password"], input[type="number"], select, textarea {
+        input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="url"], input[type="datetime-local"], input[type="date"], select, textarea {
             width: 100%; padding: 11px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);
             background: rgba(255,255,255,0.03); color: var(--text-normal); font-family: var(--font-stack);
             font-size: 14px; outline: none; transition: border-color 0.15s, background 0.15s;
@@ -266,6 +267,26 @@
         .message-row { padding:12px 0; border-top:1px solid var(--border-color-soft); }
         .message-row:first-child { border-top:0; }
         .message-row p { margin:5px 0 0; color:var(--text-muted); white-space:pre-wrap; }
+        .summary-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:12px; max-width:1180px; margin:0 auto 22px; padding:0 20px; }
+        .summary-card { background:linear-gradient(145deg,rgba(20,38,61,.96),rgba(11,25,43,.96)); border:1px solid var(--border-color-soft); border-radius:16px; padding:16px; box-shadow:0 18px 50px rgba(0,0,0,.16); }
+        .summary-card strong { display:block; font-size:25px; letter-spacing:-.04em; }
+        .summary-card span { color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; font-weight:800; }
+        .feature-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:22px; }
+        .feature-card { background:var(--bg-card); border:1px solid var(--border-color-soft); border-radius:var(--radius-lg); padding:20px; }
+        .feature-card.wide { grid-column:1/-1; }
+        .feature-card h2 { margin:0 0 4px; font-size:16px; }
+        .compact-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:14px; }
+        .compact-form .wide { grid-column:1/-1; }
+        .compact-form label { margin-top:0; }
+        .mini-list { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+        .mini-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; background:rgba(255,255,255,.025); border:1px solid var(--border-color-soft); border-radius:12px; padding:12px; }
+        .mini-row p { margin:3px 0 0; color:var(--text-muted); font-size:12px; }
+        .job-quick-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+        .btn-small { padding:7px 11px; font-size:11.5px; }
+        .check-row { display:flex; align-items:center; gap:8px; color:var(--text-muted); font-size:13px; }
+        .check-row input { width:18px; height:18px; accent-color:var(--accent-brand); }
+        @media(max-width:900px){.summary-grid{grid-template-columns:repeat(3,1fr)}.feature-grid{grid-template-columns:1fr}.feature-card.wide{grid-column:auto}}
+        @media(max-width:620px){.summary-grid{grid-template-columns:repeat(2,1fr)}.compact-form{grid-template-columns:1fr}.compact-form .wide{grid-column:auto}.job-card-footer{align-items:flex-start;gap:12px}.job-quick-actions{justify-content:flex-start}}
 
         .empty-state, .loading-state {
             text-align: center; color: var(--text-faint); font-size: 13.5px; padding: 56px 20px;
@@ -278,7 +299,7 @@
 </head>
 <body>
     <header>
-        <a href="/jobs" class="brand">Job<span class="tag">Portal</span><span class="version-badge" id="appVersion">v2.0.1</span></a>
+        <a href="/jobs" class="brand">Job<span class="tag">Portal</span><span class="version-badge" id="appVersion">v3.0.0</span></a>
         <div class="header-actions">
             <a class="updates-link" href="/jobs/updates">What's new</a>
             <div class="user-pill" id="userPill">
@@ -327,9 +348,18 @@
     <!-- LOGGED IN -->
     <div id="appView" style="display:none;">
         <div class="page-heading">
-            <h1>Welcome back, <span id="welcomeUsername2"></span>.</h1>
-            <p>Here's what's out there matching your roles right now.</p>
+            <h1>Your career command center, <span id="welcomeUsername2"></span>.</h1>
+            <p>Discover, tailor, verify, apply, interview, and manage offers from one calm workspace.</p>
         </div>
+
+        <section class="summary-grid" aria-label="Career dashboard">
+            <div class="summary-card"><strong id="statSaved">0</strong><span>Saved</span></div>
+            <div class="summary-card"><strong id="statActive">0</strong><span>In progress</span></div>
+            <div class="summary-card"><strong id="statApplied">0</strong><span>Applied</span></div>
+            <div class="summary-card"><strong id="statInterviews">0</strong><span>Interviews</span></div>
+            <div class="summary-card"><strong id="statUnread">0</strong><span>Unread</span></div>
+            <div class="summary-card"><strong id="statOffers">0</strong><span>Offers</span></div>
+        </section>
 
         <div class="app-shell">
             <div class="sidebar">
@@ -432,8 +462,44 @@
 
             <div class="main-col">
                 <nav class="product-nav" aria-label="Job portal sections">
-                    <a href="#matches">Job matches</a><a href="#applications">Applications</a><a href="#messages">Messages</a><a href="#profile">Profile &amp; documents</a><a href="/jobs/updates">Versions &amp; updates</a>
+                    <a href="#matches">Discover</a><a href="#saved">Saved</a><a href="#applications">Applications</a><a href="#career">Career profile</a><a href="#schedule">Interviews &amp; offers</a><a href="#messages">Inbox</a><a href="/jobs/updates">Updates</a>
                 </nav>
+                <section class="feature-grid">
+                    <article class="feature-card" id="saved">
+                        <h2>Saved jobs</h2><p class="hint">Your shortlist stays separate from applications.</p>
+                        <div class="mini-list" id="savedJobsList"><span class="source-status">No saved jobs yet.</span></div>
+                    </article>
+                    <article class="feature-card">
+                        <h2>Saved searches &amp; alerts</h2><p class="hint">Reuse searches and control portal notifications.</p>
+                        <div class="compact-form"><div><label for="searchName">Search name</label><input id="searchName" placeholder="Remote backend roles"></div><div><label for="searchQuery">Keywords</label><input id="searchQuery" placeholder="Node.js API"></div><button class="btn btn-primary wide" id="saveSearchBtn">Save search</button></div>
+                        <div class="mini-list" id="savedSearchesList"></div>
+                        <div class="compact-form"><div><label for="digestFrequency">Digest</label><select id="digestFrequency"><option value="instant">Instant</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="off">Off</option></select></div><div class="check-row"><input type="checkbox" id="alertApplications" checked><label for="alertApplications">Application updates</label></div><button class="btn btn-ghost wide" id="saveAlertsBtn">Save alert settings</button></div>
+                    </article>
+                    <article class="feature-card wide" id="career">
+                        <h2>Career profile &amp; answer library</h2><p class="hint">Structured facts improve matching. Only answers you explicitly approve are eligible for auto-apply.</p>
+                        <div class="compact-form"><div><label for="careerKind">Section</label><select id="careerKind"><option value="experience">Experience</option><option value="education">Education</option><option value="certification">Certification</option><option value="project">Project</option><option value="volunteering">Volunteering</option><option value="language">Language</option><option value="reference">Reference</option></select></div><div><label for="careerTitle">Title</label><input id="careerTitle" placeholder="Senior Software Engineer"></div><div><label for="careerOrg">Organization</label><input id="careerOrg" placeholder="Company or school"></div><div><label for="careerDescription">Description</label><input id="careerDescription" placeholder="Outcomes, scope, credentials"></div><button class="btn btn-primary wide" id="addCareerItemBtn">Add to career profile</button></div>
+                        <div class="mini-list" id="careerItemsList"></div>
+                        <div class="compact-form"><div><label for="answerQuestion">Screening question</label><input id="answerQuestion" placeholder="Are you authorized to work in the U.S.?"></div><div><label for="answerValue">Verified answer</label><input id="answerValue" placeholder="Yes"></div><div class="check-row wide"><input type="checkbox" id="answerApproved"><label for="answerApproved">Approve for automatic applications</label></div><button class="btn btn-ghost wide" id="addAnswerBtn">Save answer</button></div>
+                        <div class="mini-list" id="answerLibraryList"></div>
+                    </article>
+                    <article class="feature-card wide" id="schedule">
+                        <h2>Interviews &amp; offers</h2><p class="hint">Track every conversation, deadline, and decision.</p>
+                        <div class="compact-form"><div><label for="interviewDate">Interview date</label><input type="datetime-local" id="interviewDate"></div><div><label for="interviewFormat">Format</label><select id="interviewFormat"><option value="video">Video</option><option value="phone">Phone</option><option value="onsite">On-site</option></select></div><div><label for="interviewContact">Contact</label><input id="interviewContact" placeholder="Recruiter name"></div><button class="btn btn-primary" id="addInterviewBtn">Add interview</button></div>
+                        <div class="mini-list" id="interviewsList"></div>
+                        <div class="compact-form"><div><label for="offerCompany">Offer company</label><input id="offerCompany"></div><div><label for="offerTitle">Role</label><input id="offerTitle"></div><div><label for="offerSalary">Base salary</label><input type="number" id="offerSalary" min="0"></div><button class="btn btn-ghost" id="addOfferBtn">Track offer</button></div>
+                        <div class="mini-list" id="offersList"></div>
+                    </article>
+                    <article class="feature-card">
+                        <h2>Events &amp; networking</h2><p class="hint">Keep career fairs, meetups, and networking sessions beside your search.</p>
+                        <div class="compact-form"><div><label for="eventTitle">Event</label><input id="eventTitle" placeholder="Engineering career fair"></div><div><label for="eventDate">Starts</label><input type="datetime-local" id="eventDate"></div><button class="btn btn-primary wide" id="addEventBtn">Add event</button></div>
+                        <div class="mini-list" id="eventsList"></div>
+                    </article>
+                    <article class="feature-card">
+                        <h2>Company research notes</h2><p class="hint">Keep your own private ratings and interview research.</p>
+                        <div class="compact-form"><div><label for="reviewCompany">Company</label><input id="reviewCompany"></div><div><label for="reviewRating">Rating</label><select id="reviewRating"><option value="5">5 — Excellent</option><option value="4">4 — Good</option><option value="3">3 — Mixed</option><option value="2">2 — Weak</option><option value="1">1 — Avoid</option></select></div><div class="wide"><label for="reviewText">Notes</label><input id="reviewText" placeholder="Culture, interview, compensation, concerns"></div><button class="btn btn-ghost wide" id="addReviewBtn">Save company note</button></div>
+                        <div class="mini-list" id="reviewsList"></div>
+                    </article>
+                </section>
                 <div class="card application-panel" id="applications">
                     <h2>Application tracker</h2>
                     <p class="hint">Hagent tailors and independently verifies each resume. Login or direct-portal steps stay visible here.</p>
@@ -584,6 +650,12 @@
             loadSourceStatus();
             loadApplications();
             loadMessages();
+            loadDashboard();
+            loadSavedJobs();
+            loadSearchesAndAlerts();
+            loadCareerHub();
+            loadSchedule();
+            loadCareerExtras();
         }
 
         (async function checkSession() {
@@ -762,6 +834,88 @@
             } catch (err) { resumeError.textContent = err.message; resumeError.style.display = 'block'; }
         });
 
+        /* ---- Career workspace ---- */
+        async function loadDashboard() {
+            try {
+                const summary = (await api('/api/jobs/dashboard')).summary || {};
+                ['Saved','Active','Applied','Interviews','Unread','Offers'].forEach(name => {
+                    document.getElementById(`stat${name}`).textContent = Number(summary[name.toLowerCase()] || 0).toLocaleString();
+                });
+            } catch (_) {}
+        }
+
+        async function loadSavedJobs() {
+            const container = document.getElementById('savedJobsList');
+            try {
+                const jobs = (await api('/api/jobs/saved')).jobs || [];
+                container.innerHTML = jobs.length ? jobs.map(job => `<div class="mini-row"><div><strong>${escapeHtml(job.title)}</strong><p>${escapeHtml(job.company || 'Company not listed')} · ${escapeHtml(job.location || 'Location flexible')}</p></div><div class="job-quick-actions"><a class="btn btn-ghost btn-small" href="${escapeHtml(job.applyUrl)}" target="_blank" rel="noopener">Open</a><button class="btn btn-ghost btn-small" data-unsave-job="${escapeHtml(job.id)}">Remove</button></div></div>`).join('') : '<span class="source-status">No saved jobs yet.</span>';
+            } catch (err) { container.innerHTML = `<span class="source-status">${escapeHtml(err.message)}</span>`; }
+        }
+        document.getElementById('savedJobsList').addEventListener('click', async event => {
+            const button = event.target.closest('[data-unsave-job]'); if (!button) return;
+            await api(`/api/jobs/saved/${encodeURIComponent(button.dataset.unsaveJob)}`, { method:'DELETE' });
+            loadSavedJobs(); loadDashboard(); loadRecommendations();
+        });
+
+        async function loadSearchesAndAlerts() {
+            try {
+                const [searchData, alertData] = await Promise.all([api('/api/jobs/searches'), api('/api/jobs/alerts')]);
+                const list = document.getElementById('savedSearchesList');
+                list.innerHTML = (searchData.searches || []).map(item => `<div class="mini-row"><div><strong>${escapeHtml(item.name)}</strong><p>${escapeHtml(item.query || 'All roles')}${item.alertsEnabled ? ' · Alerts on' : ''}</p></div><button class="btn btn-ghost btn-small" data-delete-search="${item.id}">Delete</button></div>`).join('') || '<span class="source-status">No saved searches.</span>';
+                document.getElementById('digestFrequency').value = alertData.settings.digestFrequency || 'daily';
+                document.getElementById('alertApplications').checked = alertData.settings.applicationUpdates !== false;
+            } catch (_) {}
+        }
+        document.getElementById('saveSearchBtn').addEventListener('click', async () => {
+            const name = document.getElementById('searchName').value.trim(); if (!name) return alert('Enter a search name.');
+            await api('/api/jobs/searches',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,query:document.getElementById('searchQuery').value.trim(),alertsEnabled:true})});
+            document.getElementById('searchName').value=''; document.getElementById('searchQuery').value=''; loadSearchesAndAlerts();
+        });
+        document.getElementById('savedSearchesList').addEventListener('click', async event => {
+            const button=event.target.closest('[data-delete-search]'); if(!button)return;
+            await api(`/api/jobs/searches/${button.dataset.deleteSearch}`,{method:'DELETE'}); loadSearchesAndAlerts();
+        });
+        document.getElementById('saveAlertsBtn').addEventListener('click', async () => {
+            await api('/api/jobs/alerts',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({digestFrequency:document.getElementById('digestFrequency').value,applicationUpdates:document.getElementById('alertApplications').checked})});
+        });
+
+        async function loadCareerHub() {
+            try {
+                const [profileData, answerData] = await Promise.all([api('/api/jobs/profile-items'),api('/api/jobs/answer-library')]);
+                document.getElementById('careerItemsList').innerHTML = (profileData.items || []).map(item => `<div class="mini-row"><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.kind)}${item.organization ? ` · ${escapeHtml(item.organization)}` : ''}${item.description ? ` · ${escapeHtml(item.description)}` : ''}</p></div><button class="btn btn-ghost btn-small" data-delete-career="${item.id}">Delete</button></div>`).join('') || '<span class="source-status">Add experience, education, certifications, projects, or languages.</span>';
+                document.getElementById('answerLibraryList').innerHTML = (answerData.answers || []).map(item => `<div class="mini-row"><div><strong>${escapeHtml(item.question)}</strong><p>${escapeHtml(item.answer)} · ${item.approvedForAutoApply ? 'Approved for auto-apply' : 'Manual review only'}</p></div></div>`).join('') || '<span class="source-status">No approved screening answers yet.</span>';
+            } catch (_) {}
+        }
+        document.getElementById('addCareerItemBtn').addEventListener('click', async () => {
+            const title=document.getElementById('careerTitle').value.trim(); if(!title)return alert('Enter a title.');
+            await api('/api/jobs/profile-items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:document.getElementById('careerKind').value,title,organization:document.getElementById('careerOrg').value,description:document.getElementById('careerDescription').value})});
+            ['careerTitle','careerOrg','careerDescription'].forEach(id=>document.getElementById(id).value=''); loadCareerHub();
+        });
+        document.getElementById('careerItemsList').addEventListener('click', async event => {
+            const button=event.target.closest('[data-delete-career]'); if(!button)return;
+            await api(`/api/jobs/profile-items/${button.dataset.deleteCareer}`,{method:'DELETE'}); loadCareerHub();
+        });
+        document.getElementById('addAnswerBtn').addEventListener('click', async () => {
+            const question=document.getElementById('answerQuestion').value.trim(),answer=document.getElementById('answerValue').value.trim(); if(!question||!answer)return alert('Enter both the question and your verified answer.');
+            await api('/api/jobs/answer-library',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question,answer,approvedForAutoApply:document.getElementById('answerApproved').checked})});
+            document.getElementById('answerQuestion').value='';document.getElementById('answerValue').value='';document.getElementById('answerApproved').checked=false;loadCareerHub();
+        });
+
+        async function loadSchedule() {
+            try {
+                const [interviewData,offerData]=await Promise.all([api('/api/jobs/interviews'),api('/api/jobs/offers')]);
+                document.getElementById('interviewsList').innerHTML=(interviewData.interviews||[]).map(item=>`<div class="mini-row"><div><strong>${escapeHtml(item.title || 'Interview')}</strong><p>${new Date(item.scheduledAt).toLocaleString()} · ${escapeHtml(item.format)}${item.contactName ? ` · ${escapeHtml(item.contactName)}`:''}</p></div><span class="application-status">${escapeHtml(item.status)}</span></div>`).join('')||'<span class="source-status">No interviews scheduled.</span>';
+                document.getElementById('offersList').innerHTML=(offerData.offers||[]).map(item=>`<div class="mini-row"><div><strong>${escapeHtml(item.title)} at ${escapeHtml(item.company)}</strong><p>${item.salary ? '$'+Number(item.salary).toLocaleString() : 'Compensation not entered'} · ${escapeHtml(item.status)}</p></div></div>`).join('')||'<span class="source-status">No offers tracked.</span>';
+                loadDashboard();
+            } catch (_) {}
+        }
+        document.getElementById('addInterviewBtn').addEventListener('click',async()=>{const scheduledAt=document.getElementById('interviewDate').value;if(!scheduledAt)return alert('Choose an interview date.');await api('/api/jobs/interviews',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scheduledAt:new Date(scheduledAt).toISOString(),format:document.getElementById('interviewFormat').value,contactName:document.getElementById('interviewContact').value})});document.getElementById('interviewDate').value='';loadSchedule();});
+        document.getElementById('addOfferBtn').addEventListener('click',async()=>{const company=document.getElementById('offerCompany').value.trim(),title=document.getElementById('offerTitle').value.trim();if(!company||!title)return alert('Enter the company and role.');await api('/api/jobs/offers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company,title,salary:document.getElementById('offerSalary').value||null})});['offerCompany','offerTitle','offerSalary'].forEach(id=>document.getElementById(id).value='');loadSchedule();});
+
+        async function loadCareerExtras(){try{const[eventData,reviewData]=await Promise.all([api('/api/jobs/events'),api('/api/jobs/company-reviews')]);document.getElementById('eventsList').innerHTML=(eventData.events||[]).map(item=>`<div class="mini-row"><div><strong>${escapeHtml(item.title)}</strong><p>${new Date(item.startsAt).toLocaleString()}${item.organizer?` · ${escapeHtml(item.organizer)}`:''}</p></div></div>`).join('')||'<span class="source-status">No career events saved.</span>';document.getElementById('reviewsList').innerHTML=(reviewData.reviews||[]).map(item=>`<div class="mini-row"><div><strong>${escapeHtml(item.company)} · ${'★'.repeat(item.rating)}</strong><p>${escapeHtml(item.review||item.title||'Private company note')}</p></div></div>`).join('')||'<span class="source-status">No company research notes.</span>';}catch(_){}}
+        document.getElementById('addEventBtn').addEventListener('click',async()=>{const title=document.getElementById('eventTitle').value.trim(),startsAt=document.getElementById('eventDate').value;if(!title||!startsAt)return alert('Enter an event and date.');await api('/api/jobs/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,startsAt:new Date(startsAt).toISOString()})});document.getElementById('eventTitle').value='';document.getElementById('eventDate').value='';loadCareerExtras();});
+        document.getElementById('addReviewBtn').addEventListener('click',async()=>{const company=document.getElementById('reviewCompany').value.trim();if(!company)return alert('Enter a company.');await api('/api/jobs/company-reviews',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company,rating:Number(document.getElementById('reviewRating').value),review:document.getElementById('reviewText').value,anonymous:true})});document.getElementById('reviewCompany').value='';document.getElementById('reviewText').value='';loadCareerExtras();});
+
         /* ---- Recommendations ---- */
         const recsContainer = document.getElementById('recsContainer');
         const refreshBtn = document.getElementById('refreshRecsBtn');
@@ -827,6 +981,22 @@
         });
 
         recsContainer.addEventListener('click', async event => {
+            const saveButton = event.target.closest('[data-save-job]');
+            if (saveButton) {
+                await api(`/api/jobs/saved/${encodeURIComponent(saveButton.dataset.saveJob)}`, { method:'PUT' });
+                saveButton.textContent = 'Saved'; loadSavedJobs(); loadDashboard(); return;
+            }
+            const hideButton = event.target.closest('[data-hide-job]');
+            if (hideButton) {
+                await api(`/api/jobs/hidden/${encodeURIComponent(hideButton.dataset.hideJob)}`, { method:'PUT',headers:{'Content-Type':'application/json'},body:'{}' });
+                loadRecommendations(); loadSavedJobs(); loadDashboard(); return;
+            }
+            const reportButton = event.target.closest('[data-report-job]');
+            if (reportButton) {
+                const detail = prompt('What is wrong with this listing?'); if (!detail) return;
+                await api('/api/jobs/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jobId:reportButton.dataset.reportJob,category:'listing_issue',detail})});
+                reportButton.textContent='Reported'; reportButton.disabled=true; return;
+            }
             const button = event.target.closest('[data-tailor-job]');
             if (!button) return;
             button.disabled = true;
@@ -837,7 +1007,7 @@
                 loadApplications();
             } catch (err) {
                 button.disabled = false;
-                button.textContent = 'Tailor & track';
+                button.textContent = 'Tailor & apply';
                 alert(err.message);
             }
         });
@@ -898,7 +1068,7 @@
                             ${gaps.length ? `<div class="match-reasons preference-gaps">${gaps.map(gap => `<span class="match-reason">${escapeHtml(gap)}</span>`).join('')}</div>` : ''}
                             <div class="job-card-footer">
                                 <span class="source-tag">via ${escapeHtml(job.source || '')}${postedText ? ` · ${escapeHtml(postedText)}` : ''}</span>
-                                <span><button class="btn btn-primary" data-tailor-job="${escapeHtml(job.id)}">Tailor &amp; track</button> <a class="apply-link" href="${escapeHtml(job.applyUrl || '#')}" target="_blank" rel="noopener noreferrer">Direct link${ICON_APPLY}</a></span>
+                                <span class="job-quick-actions"><button class="btn btn-ghost btn-small" data-save-job="${escapeHtml(job.id)}">${job.saved ? 'Saved' : 'Save'}</button><button class="btn btn-ghost btn-small" data-hide-job="${escapeHtml(job.id)}">Hide</button><button class="btn btn-ghost btn-small" data-report-job="${escapeHtml(job.id)}">Report</button><button class="btn btn-primary btn-small" data-tailor-job="${escapeHtml(job.id)}">Tailor &amp; apply</button><a class="apply-link" href="${escapeHtml(job.applyUrl || '#')}" target="_blank" rel="noopener noreferrer">Direct${ICON_APPLY}</a></span>
                             </div>
                         </div>
                     </div>

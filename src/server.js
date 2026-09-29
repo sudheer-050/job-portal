@@ -170,6 +170,117 @@ const ready = (async () => {
             read_at TIMESTAMPTZ,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
+        CREATE TABLE IF NOT EXISTS job_saved_jobs (
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            job_id TEXT NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (username,job_id)
+        );
+        CREATE TABLE IF NOT EXISTS job_hidden_jobs (
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            job_id TEXT NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+            reason TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (username,job_id)
+        );
+        CREATE TABLE IF NOT EXISTS job_saved_searches (
+            id BIGSERIAL PRIMARY KEY,
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            query TEXT,
+            location TEXT,
+            filters JSONB NOT NULL DEFAULT '{}'::jsonb,
+            alerts_enabled BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        CREATE TABLE IF NOT EXISTS job_alert_settings (
+            username VARCHAR(20) PRIMARY KEY REFERENCES job_users(username) ON DELETE CASCADE,
+            email_enabled BOOLEAN NOT NULL DEFAULT true,
+            application_updates BOOLEAN NOT NULL DEFAULT true,
+            recruiter_messages BOOLEAN NOT NULL DEFAULT true,
+            interview_reminders BOOLEAN NOT NULL DEFAULT true,
+            digest_frequency VARCHAR(12) NOT NULL DEFAULT 'daily',
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        CREATE TABLE IF NOT EXISTS job_profile_items (
+            id BIGSERIAL PRIMARY KEY,
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            kind VARCHAR(24) NOT NULL,
+            title TEXT NOT NULL,
+            organization TEXT,
+            start_date DATE,
+            end_date DATE,
+            description TEXT,
+            metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        CREATE TABLE IF NOT EXISTS job_interviews (
+            id BIGSERIAL PRIMARY KEY,
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            application_id INTEGER REFERENCES job_applications(id) ON DELETE CASCADE,
+            scheduled_at TIMESTAMPTZ NOT NULL,
+            duration_minutes SMALLINT NOT NULL DEFAULT 30,
+            format VARCHAR(16) NOT NULL DEFAULT 'video',
+            location_or_url TEXT,
+            contact_name TEXT,
+            notes TEXT,
+            status VARCHAR(16) NOT NULL DEFAULT 'scheduled',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        CREATE TABLE IF NOT EXISTS job_offers (
+            id BIGSERIAL PRIMARY KEY,
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            application_id INTEGER REFERENCES job_applications(id) ON DELETE CASCADE,
+            company TEXT NOT NULL,
+            title TEXT NOT NULL,
+            salary INTEGER,
+            currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+            deadline DATE,
+            status VARCHAR(16) NOT NULL DEFAULT 'considering',
+            notes TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        CREATE TABLE IF NOT EXISTS job_events (
+            id BIGSERIAL PRIMARY KEY,
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            title TEXT NOT NULL,
+            organizer TEXT,
+            starts_at TIMESTAMPTZ NOT NULL,
+            location_or_url TEXT,
+            event_type VARCHAR(20) NOT NULL DEFAULT 'networking',
+            notes TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        CREATE TABLE IF NOT EXISTS job_company_reviews (
+            id BIGSERIAL PRIMARY KEY,
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            company TEXT NOT NULL,
+            rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+            title TEXT,
+            review TEXT,
+            anonymous BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        CREATE TABLE IF NOT EXISTS job_answer_library (
+            id BIGSERIAL PRIMARY KEY,
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            question TEXT NOT NULL,
+            answer TEXT NOT NULL,
+            answer_type VARCHAR(20) NOT NULL DEFAULT 'general',
+            approved_for_auto_apply BOOLEAN NOT NULL DEFAULT false,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE(username,question)
+        );
+        CREATE TABLE IF NOT EXISTS job_reports (
+            id BIGSERIAL PRIMARY KEY,
+            username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+            job_id TEXT REFERENCES job_postings(id) ON DELETE SET NULL,
+            category VARCHAR(32) NOT NULL,
+            detail TEXT,
+            status VARCHAR(16) NOT NULL DEFAULT 'open',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
     `);
 })();
 ready.catch(error => {
@@ -251,7 +362,7 @@ async function completedHagentOutput(issueId) {
     return runId ? await hagentCli(['issue', 'run-messages', runId]) : null;
 }
 
-function applicationPrompt(job, resumeText) {
+function applicationPrompt(job, resumeText, profile = {}, answers = []) {
     return [
         'Tailor the source resume for this exact job without inventing or upgrading any fact.',
         'Return exactly one JSON object in a ```json fenced block with this schema:',
@@ -260,6 +371,8 @@ function applicationPrompt(job, resumeText) {
         `LOCATION: ${job.location || 'Not listed'}`, `APPLICATION URL: ${job.apply_url}`,
         '', 'JOB DESCRIPTION:', String(job.description || '').slice(0, 24000),
         '', 'SOURCE RESUME (the only allowed source of candidate facts):', String(resumeText || '').slice(0, 32000),
+        '', 'CANDIDATE-PROVIDED APPLICATION PROFILE:', JSON.stringify(profile).slice(0, 10000),
+        '', 'APPROVED ANSWER LIBRARY (use only for matching questions):', JSON.stringify(answers).slice(0, 12000),
     ].join('\n');
 }
 
@@ -404,7 +517,7 @@ app.get('/api/jobs/meta', (_req, res) => res.json({
         { name: 'Product guide', version: APP_VERSION, level: 'stable', path: '/jobs#profile' },
         { name: 'Release notes', version: APP_VERSION, level: 'stable', path: '/jobs/updates' },
         { name: 'Job source registry', version: '1.1.0', level: 'controlled', path: '/jobs/updates#documents' },
-        { name: 'Application automation policy', version: '1.0.0', level: 'controlled', path: '/jobs/updates#documents' },
+        { name: 'Application automation policy', version: '1.1.0', level: 'controlled', path: '/jobs/updates#documents' },
         { name: 'Submission runner', version: '0.1.0', level: 'beta', path: '/jobs/updates#known-limitations' },
     ],
 }));
@@ -620,7 +733,13 @@ app.get('/api/jobs/recommendations', requireAuth, async (req, res) => {
         await jobService.refreshForPreferences(preferences);
         const candidateText = `${profile.skills || ''} ${resumeResult.rows[0]?.resume_text || ''}`.trim();
         const recommendations = await jobService.recommendations(preferences, candidateText);
-        res.json({ recommendations });
+        const [saved, hidden] = await Promise.all([
+            pool.query('SELECT job_id FROM job_saved_jobs WHERE username=$1', [req.jobUsername]),
+            pool.query('SELECT job_id FROM job_hidden_jobs WHERE username=$1', [req.jobUsername]),
+        ]);
+        const savedIds = new Set(saved.rows.map(row => row.job_id));
+        const hiddenIds = new Set(hidden.rows.map(row => row.job_id));
+        res.json({ recommendations: recommendations.filter(job => !hiddenIds.has(job.id)).map(job => ({ ...job, saved: savedIds.has(job.id) })) });
     } catch (error) {
         console.error('recommendations failed:', error.message);
         res.status(502).json({ error: 'Unable to refresh job recommendations right now.' });
@@ -637,9 +756,11 @@ app.post('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
         return res.status(503).json({ error: 'The Hagent recruiter is not configured yet.' });
     }
     const jobId = String(req.body?.jobId || '');
-    const [jobResult, resumeResult] = await Promise.all([
+    const [jobResult, resumeResult, profileResult, answerResult] = await Promise.all([
         pool.query('SELECT * FROM job_postings WHERE id=$1 AND active=true', [jobId]),
         pool.query('SELECT resume_text FROM resumes WHERE username=$1', [req.jobUsername]),
+        pool.query('SELECT * FROM job_profiles WHERE username=$1', [req.jobUsername]),
+        pool.query('SELECT question,answer,answer_type FROM job_answer_library WHERE username=$1 AND approved_for_auto_apply=true', [req.jobUsername]),
     ]);
     if (!jobResult.rows.length) return res.status(404).json({ error: 'That job is no longer available.' });
     if (!resumeResult.rows.length) return res.status(400).json({ error: 'Upload your source resume before starting an application.' });
@@ -648,7 +769,7 @@ app.post('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
     if (existing.rows.length) return res.status(409).json({ error: 'This job is already in your application tracker.', application: existing.rows[0] });
     const created = await hagentCli(['issue', 'create', '--project', HAGENT_PROJECT_ID,
         '--title', `Tailor resume: ${job.title} at ${job.company || 'Unknown company'}`,
-        '--description', applicationPrompt(job, resumeResult.rows[0].resume_text),
+        '--description', applicationPrompt(job, resumeResult.rows[0].resume_text, profileResult.rows[0] || {}, answerResult.rows),
         '--assignee', HAGENT_RECRUITER_AGENT_ID, '--status', 'todo']);
     const result = await pool.query(
         `INSERT INTO job_applications (username,job_id,hagent_issue_id,status,requires_login)
@@ -765,6 +886,206 @@ app.get('/api/jobs/notifications', requireAuth, asyncRoute(async (req, res) => {
 app.post('/api/jobs/notifications/:id/read', requireAuth, asyncRoute(async (req, res) => {
     await pool.query('UPDATE job_notifications SET read_at=COALESCE(read_at,now()) WHERE id=$1 AND username=$2', [req.params.id, req.jobUsername]);
     res.json({ ok: true });
+}));
+
+app.get('/api/jobs/dashboard', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query(
+        `SELECT
+          (SELECT count(*)::int FROM job_saved_jobs WHERE username=$1) AS saved,
+          (SELECT count(*)::int FROM job_applications WHERE username=$1 AND status <> 'applied') AS active,
+          (SELECT count(*)::int FROM job_applications WHERE username=$1 AND status = 'applied') AS applied,
+          (SELECT count(*)::int FROM job_interviews WHERE username=$1 AND status='scheduled' AND scheduled_at >= now()) AS interviews,
+          (SELECT count(*)::int FROM job_messages WHERE username=$1 AND read_at IS NULL) AS unread,
+          (SELECT count(*)::int FROM job_offers WHERE username=$1 AND status='considering') AS offers`,
+        [req.jobUsername]
+    );
+    res.json({ summary: result.rows[0] });
+}));
+
+app.get('/api/jobs/saved', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query(
+        `SELECT p.id,p.title,p.company,p.location,p.apply_url AS "applyUrl",p.source,p.posted_at AS "postedAt",s.created_at AS "savedAt"
+         FROM job_saved_jobs s JOIN job_postings p ON p.id=s.job_id WHERE s.username=$1 ORDER BY s.created_at DESC`,
+        [req.jobUsername]
+    );
+    res.json({ jobs: result.rows });
+}));
+
+app.put('/api/jobs/saved/:jobId', requireAuth, asyncRoute(async (req, res) => {
+    const found = await pool.query('SELECT 1 FROM job_postings WHERE id=$1', [req.params.jobId]);
+    if (!found.rows.length) return res.status(404).json({ error: 'Job not found.' });
+    await pool.query('INSERT INTO job_saved_jobs(username,job_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [req.jobUsername, req.params.jobId]);
+    await pool.query('DELETE FROM job_hidden_jobs WHERE username=$1 AND job_id=$2', [req.jobUsername, req.params.jobId]);
+    res.json({ saved: true });
+}));
+
+app.delete('/api/jobs/saved/:jobId', requireAuth, asyncRoute(async (req, res) => {
+    await pool.query('DELETE FROM job_saved_jobs WHERE username=$1 AND job_id=$2', [req.jobUsername, req.params.jobId]);
+    res.json({ saved: false });
+}));
+
+app.put('/api/jobs/hidden/:jobId', requireAuth, asyncRoute(async (req, res) => {
+    const reason = String(req.body?.reason || '').trim().slice(0, 500) || null;
+    await pool.query('INSERT INTO job_hidden_jobs(username,job_id,reason) VALUES($1,$2,$3) ON CONFLICT(username,job_id) DO UPDATE SET reason=$3,created_at=now()', [req.jobUsername, req.params.jobId, reason]);
+    await pool.query('DELETE FROM job_saved_jobs WHERE username=$1 AND job_id=$2', [req.jobUsername, req.params.jobId]);
+    res.json({ hidden: true });
+}));
+
+app.get('/api/jobs/searches', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query('SELECT id,name,query,location,filters,alerts_enabled AS "alertsEnabled",created_at AS "createdAt" FROM job_saved_searches WHERE username=$1 ORDER BY created_at DESC', [req.jobUsername]);
+    res.json({ searches: result.rows });
+}));
+
+app.post('/api/jobs/searches', requireAuth, asyncRoute(async (req, res) => {
+    const name = String(req.body?.name || '').trim().slice(0, 100);
+    if (!name) return res.status(400).json({ error: 'Search name is required.' });
+    const result = await pool.query(
+        `INSERT INTO job_saved_searches(username,name,query,location,filters,alerts_enabled)
+         VALUES($1,$2,$3,$4,$5,$6) RETURNING id,name,query,location,filters,alerts_enabled AS "alertsEnabled"`,
+        [req.jobUsername, name, String(req.body?.query || '').trim().slice(0, 200) || null,
+            String(req.body?.location || '').trim().slice(0, 100) || null, req.body?.filters || {}, req.body?.alertsEnabled !== false]
+    );
+    res.status(201).json({ search: result.rows[0] });
+}));
+
+app.delete('/api/jobs/searches/:id', requireAuth, asyncRoute(async (req, res) => {
+    await pool.query('DELETE FROM job_saved_searches WHERE id=$1 AND username=$2', [req.params.id, req.jobUsername]);
+    res.json({ ok: true });
+}));
+
+app.get('/api/jobs/alerts', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query(
+        `SELECT email_enabled AS "emailEnabled",application_updates AS "applicationUpdates",
+         recruiter_messages AS "recruiterMessages",interview_reminders AS "interviewReminders",
+         digest_frequency AS "digestFrequency" FROM job_alert_settings WHERE username=$1`, [req.jobUsername]
+    );
+    res.json({ settings: result.rows[0] || { emailEnabled: true, applicationUpdates: true, recruiterMessages: true, interviewReminders: true, digestFrequency: 'daily' } });
+}));
+
+app.put('/api/jobs/alerts', requireAuth, asyncRoute(async (req, res) => {
+    const frequency = ['instant', 'daily', 'weekly', 'off'].includes(req.body?.digestFrequency) ? req.body.digestFrequency : 'daily';
+    const result = await pool.query(
+        `INSERT INTO job_alert_settings(username,email_enabled,application_updates,recruiter_messages,interview_reminders,digest_frequency)
+         VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(username) DO UPDATE SET email_enabled=$2,application_updates=$3,
+         recruiter_messages=$4,interview_reminders=$5,digest_frequency=$6,updated_at=now()
+         RETURNING email_enabled AS "emailEnabled",application_updates AS "applicationUpdates",recruiter_messages AS "recruiterMessages",
+         interview_reminders AS "interviewReminders",digest_frequency AS "digestFrequency"`,
+        [req.jobUsername, req.body?.emailEnabled !== false, req.body?.applicationUpdates !== false,
+            req.body?.recruiterMessages !== false, req.body?.interviewReminders !== false, frequency]
+    );
+    res.json({ settings: result.rows[0] });
+}));
+
+const PROFILE_ITEM_KINDS = new Set(['experience', 'education', 'certification', 'project', 'volunteering', 'language', 'reference']);
+app.get('/api/jobs/profile-items', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query(
+        `SELECT id,kind,title,organization,start_date AS "startDate",end_date AS "endDate",description,metadata,
+         created_at AS "createdAt" FROM job_profile_items WHERE username=$1 ORDER BY kind,start_date DESC NULLS LAST,created_at DESC`, [req.jobUsername]
+    );
+    res.json({ items: result.rows });
+}));
+
+app.post('/api/jobs/profile-items', requireAuth, asyncRoute(async (req, res) => {
+    const kind = String(req.body?.kind || ''); const title = String(req.body?.title || '').trim().slice(0, 200);
+    if (!PROFILE_ITEM_KINDS.has(kind) || !title) return res.status(400).json({ error: 'A valid profile item type and title are required.' });
+    const result = await pool.query(
+        `INSERT INTO job_profile_items(username,kind,title,organization,start_date,end_date,description,metadata)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [req.jobUsername, kind, title, String(req.body?.organization || '').trim().slice(0, 200) || null,
+            req.body?.startDate || null, req.body?.endDate || null, String(req.body?.description || '').trim().slice(0, 5000) || null, req.body?.metadata || {}]
+    );
+    res.status(201).json({ item: result.rows[0] });
+}));
+
+app.delete('/api/jobs/profile-items/:id', requireAuth, asyncRoute(async (req, res) => {
+    await pool.query('DELETE FROM job_profile_items WHERE id=$1 AND username=$2', [req.params.id, req.jobUsername]);
+    res.json({ ok: true });
+}));
+
+app.get('/api/jobs/interviews', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query(
+        `SELECT i.id,i.application_id AS "applicationId",i.scheduled_at AS "scheduledAt",i.duration_minutes AS "durationMinutes",
+         i.format,i.location_or_url AS "locationOrUrl",i.contact_name AS "contactName",i.notes,i.status,p.title,p.company
+         FROM job_interviews i LEFT JOIN job_applications a ON a.id=i.application_id LEFT JOIN job_postings p ON p.id=a.job_id
+         WHERE i.username=$1 ORDER BY i.scheduled_at`, [req.jobUsername]
+    ); res.json({ interviews: result.rows });
+}));
+
+app.post('/api/jobs/interviews', requireAuth, asyncRoute(async (req, res) => {
+    if (!req.body?.scheduledAt || Number.isNaN(Date.parse(req.body.scheduledAt))) return res.status(400).json({ error: 'A valid interview date is required.' });
+    const result = await pool.query(
+        `INSERT INTO job_interviews(username,application_id,scheduled_at,duration_minutes,format,location_or_url,contact_name,notes)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [req.jobUsername, req.body?.applicationId || null, req.body.scheduledAt, Math.min(480, Math.max(10, Number(req.body?.durationMinutes || 30))),
+            ['video', 'phone', 'onsite'].includes(req.body?.format) ? req.body.format : 'video', String(req.body?.locationOrUrl || '').slice(0, 1000) || null,
+            String(req.body?.contactName || '').slice(0, 200) || null, String(req.body?.notes || '').slice(0, 5000) || null]
+    ); res.status(201).json({ interview: result.rows[0] });
+}));
+
+app.get('/api/jobs/offers', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query('SELECT id,application_id AS "applicationId",company,title,salary,currency,deadline,status,notes,created_at AS "createdAt" FROM job_offers WHERE username=$1 ORDER BY created_at DESC', [req.jobUsername]);
+    res.json({ offers: result.rows });
+}));
+
+app.post('/api/jobs/offers', requireAuth, asyncRoute(async (req, res) => {
+    const company = String(req.body?.company || '').trim().slice(0, 200); const title = String(req.body?.title || '').trim().slice(0, 200);
+    if (!company || !title) return res.status(400).json({ error: 'Company and title are required.' });
+    const result = await pool.query(
+        `INSERT INTO job_offers(username,application_id,company,title,salary,deadline,notes) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [req.jobUsername, req.body?.applicationId || null, company, title, req.body?.salary || null, req.body?.deadline || null, String(req.body?.notes || '').slice(0, 5000) || null]
+    ); res.status(201).json({ offer: result.rows[0] });
+}));
+
+app.get('/api/jobs/events', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query('SELECT id,title,organizer,starts_at AS "startsAt",location_or_url AS "locationOrUrl",event_type AS "eventType",notes FROM job_events WHERE username=$1 ORDER BY starts_at', [req.jobUsername]);
+    res.json({ events: result.rows });
+}));
+
+app.post('/api/jobs/events', requireAuth, asyncRoute(async (req, res) => {
+    const title = String(req.body?.title || '').trim().slice(0, 200);
+    if (!title || !req.body?.startsAt || Number.isNaN(Date.parse(req.body.startsAt))) return res.status(400).json({ error: 'Event title and date are required.' });
+    const result = await pool.query(
+        `INSERT INTO job_events(username,title,organizer,starts_at,location_or_url,event_type,notes) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [req.jobUsername, title, String(req.body?.organizer || '').slice(0, 200) || null, req.body.startsAt,
+            String(req.body?.locationOrUrl || '').slice(0, 1000) || null, String(req.body?.eventType || 'networking').slice(0, 20), String(req.body?.notes || '').slice(0, 5000) || null]
+    ); res.status(201).json({ event: result.rows[0] });
+}));
+
+app.get('/api/jobs/company-reviews', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query('SELECT id,company,rating,title,review,anonymous,created_at AS "createdAt" FROM job_company_reviews WHERE username=$1 ORDER BY created_at DESC', [req.jobUsername]);
+    res.json({ reviews: result.rows });
+}));
+
+app.post('/api/jobs/company-reviews', requireAuth, asyncRoute(async (req, res) => {
+    const company = String(req.body?.company || '').trim().slice(0, 200); const rating = Number(req.body?.rating);
+    if (!company || !Number.isInteger(rating) || rating < 1 || rating > 5) return res.status(400).json({ error: 'Company and a 1–5 rating are required.' });
+    const result = await pool.query(
+        'INSERT INTO job_company_reviews(username,company,rating,title,review,anonymous) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
+        [req.jobUsername, company, rating, String(req.body?.title || '').slice(0, 200) || null, String(req.body?.review || '').slice(0, 5000) || null, req.body?.anonymous !== false]
+    ); res.status(201).json({ review: result.rows[0] });
+}));
+
+app.get('/api/jobs/answer-library', requireAuth, asyncRoute(async (req, res) => {
+    const result = await pool.query('SELECT id,question,answer,answer_type AS "answerType",approved_for_auto_apply AS "approvedForAutoApply",updated_at AS "updatedAt" FROM job_answer_library WHERE username=$1 ORDER BY updated_at DESC', [req.jobUsername]);
+    res.json({ answers: result.rows });
+}));
+
+app.post('/api/jobs/answer-library', requireAuth, asyncRoute(async (req, res) => {
+    const question = String(req.body?.question || '').trim().slice(0, 500); const answer = String(req.body?.answer || '').trim().slice(0, 5000);
+    if (!question || !answer) return res.status(400).json({ error: 'Question and answer are required.' });
+    const result = await pool.query(
+        `INSERT INTO job_answer_library(username,question,answer,answer_type,approved_for_auto_apply) VALUES($1,$2,$3,$4,$5)
+         ON CONFLICT(username,question) DO UPDATE SET answer=$3,answer_type=$4,approved_for_auto_apply=$5,updated_at=now() RETURNING *`,
+        [req.jobUsername, question, answer, String(req.body?.answerType || 'general').slice(0, 20), Boolean(req.body?.approvedForAutoApply)]
+    ); res.status(201).json({ answer: result.rows[0] });
+}));
+
+app.post('/api/jobs/reports', requireAuth, asyncRoute(async (req, res) => {
+    const category = String(req.body?.category || '').trim().slice(0, 32);
+    if (!category) return res.status(400).json({ error: 'Report category is required.' });
+    const result = await pool.query('INSERT INTO job_reports(username,job_id,category,detail) VALUES($1,$2,$3,$4) RETURNING id,status',
+        [req.jobUsername, req.body?.jobId || null, category, String(req.body?.detail || '').slice(0, 5000) || null]);
+    res.status(201).json({ report: result.rows[0] });
 }));
 
 app.use((error, _req, res, _next) => {
