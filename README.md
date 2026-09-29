@@ -1,6 +1,6 @@
 # Job Portal
 
-**Product version:** 3.2.1
+**Product version:** 3.2.2
 
 **Release level:** Stable
 
@@ -14,6 +14,24 @@ resume.
 **Live portal:** [myhai.org/jobs](https://myhai.org/jobs)
 
 **Versions & updates:** [myhai.org/jobs/updates](https://myhai.org/jobs/updates)
+
+## What this is
+
+Job Portal is a private career-search command center. It brings job discovery, personalized matching, resume preparation, application tracking, follow-ups, and interview preparation into one workspace. Hagent can tailor application documents and independently review them for relevance, ATS readability, and truthfulness before an application proceeds.
+
+It is designed for the candidate—not the employer. The portal keeps your verified profile and source resume as the factual foundation, shows why each job matches, and records every application stage without claiming a submission succeeded unless an employer confirmation or explicit candidate confirmation exists.
+
+## How to use it
+
+1. **Complete Profile & Resume.** Add your identity, desired roles, locations, salary and work preferences, qualifications, work authorization, skills, source resume, and approved screening answers.
+2. **Open Discover Jobs.** Review ranked matches and the explanation for each score. Save strong possibilities, hide poor fits, or report a bad listing.
+3. **Create a Focus Plan.** Select Focus for priority roles, assign the hiring stage, add recruiter/contact notes, and schedule the next follow-up.
+4. **Prepare an application.** Select Tailor & Apply. Hagent prepares the resume and cover letter, then a separate reviewer checks truthfulness and quality.
+5. **Follow the Action Center.** Complete login, CAPTCHA, missing-answer, or unsupported-portal steps when the application is marked Action Required.
+6. **Track progress.** Use Applications for preparing, ready, action-required, and applied jobs. The portal preserves events, document versions, quality scores, links, and confirmation references.
+7. **Prepare for interviews.** Build the job-specific roadmap, complete research and STAR stories, practice technical topics, write interviewer questions, and record interviews and offers.
+
+For genuine unattended submission, configure the external submission runner and authenticated job-portal sessions. Without that connector, the portal safely prepares and reviews the application, then provides the employer link for completion.
 
 ## What's new in v3.2
 

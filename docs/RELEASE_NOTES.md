@@ -1,10 +1,16 @@
 # Release notes
 
-**Document version:** 3.2.1
+**Document version:** 3.2.2
 
 **Level:** Stable
 
 **Last reviewed:** 2026-09-29
+
+## 3.2.2 — Product onboarding guide
+
+- Added a plain-language explanation of what the Job Portal is and who it serves.
+- Added a seven-step usage guide covering setup, discovery, focus plans, Hagent preparation, action-required tasks, tracking, and interview readiness.
+- Clarified when the external submission runner is required.
 
 ## 3.2.1 — Product capability guide
 
