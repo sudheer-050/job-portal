@@ -1,5 +1,7 @@
 # Job Portal
 
+![Job Portal overview](docs/images/job-portal.png)
+
 **Product version:** 3.2.2
 
 **Release level:** Stable
