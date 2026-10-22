@@ -26,6 +26,7 @@ if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
 
 const app = express();
 app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
+app.use(require('./canonical-https'));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, '..', 'public'), { index: 'index.html' }));
