@@ -31,6 +31,9 @@ app.use(require('./canonical-https'));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, '..', 'public'), { index: 'index.html' }));
+// Production routes only /jobs* and /api/jobs/* to this service, so the pages load their
+// stylesheets and scripts from /jobs/. Never reference assets from the site root.
+app.use('/jobs', express.static(path.join(__dirname, '..', 'public'), { index: false, redirect: false }));
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const jobService = createJobService({ pool });
