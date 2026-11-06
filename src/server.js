@@ -38,6 +38,7 @@ app.use('/jobs', express.static(path.join(__dirname, '..', 'public'), { index: f
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const jobService = createJobService({ pool });
+let careerOps = null; // set by registerCareerOps below; used to run Career Ops inside the portal's own steps
 
 const ready = (async () => {
     await pool.query(`
@@ -833,11 +834,14 @@ app.post('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
         [req.jobUsername, jobId, parseCreatedIssue(created)]
     );
     await recordApplicationEvent(result.rows[0].id, 'created', 'Resume tailoring queued with Hagent.');
+    // Every application carries a Career Ops evaluation (score, legitimacy, CV gaps); never blocks or fails the application.
+    careerOps?.evaluateJobForUser(req.jobUsername, jobId).catch(error => console.error('Career Ops evaluation failed:', error.message));
     await notifyUser(req.jobUsername, 'application_started', `Tailoring started: ${job.title}`, `Hagent is preparing and independently reviewing your application for ${job.company || 'this employer'}.`, '/jobs#applications');
     res.status(202).json({ application: result.rows[0] });
 }));
 
 app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
+    await careerOps?.schemaReady; // the result query joins job_evaluations
     let rows = (await pool.query(
         `SELECT a.*,p.title,p.company,p.location,p.apply_url,p.source,p.description,r.resume_text
          FROM job_applications a JOIN job_postings p ON p.id=a.job_id
@@ -854,8 +858,10 @@ app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
         `SELECT a.id,a.job_id,a.status,a.tailored_resume,a.cover_letter,a.resume_version,a.cover_letter_version,a.quality_score,a.quality_verdict,
                 a.quality_notes,a.requires_login,a.submission_mode,a.submission_provider,a.confirmation_reference,
                 a.error,a.created_at,a.updated_at,a.applied_at,
-                p.title,p.company,p.location,p.apply_url AS "applyUrl",p.source
+                p.title,p.company,p.location,p.apply_url AS "applyUrl",p.source,
+                e.score::float AS "coScore",e.verdict AS "coVerdict",e.legitimacy_tier AS "coTier",e.coverage AS "coCoverage"
          FROM job_applications a JOIN job_postings p ON p.id=a.job_id
+         LEFT JOIN job_evaluations e ON e.username=a.username AND e.job_id=a.job_id
          WHERE a.username=$1 ORDER BY a.updated_at DESC`, [req.jobUsername]
     )).rows;
     res.json({ applications: rows });
@@ -936,6 +942,8 @@ app.post('/api/jobs/messages/:id/read', requireAuth, asyncRoute(async (req, res)
 }));
 
 app.get('/api/jobs/notifications', requireAuth, asyncRoute(async (req, res) => {
+    // Due follow-ups from Career Ops appear in the Action Center (checked at most every few minutes per user).
+    if (careerOps) await careerOps.syncAlerts(req.jobUsername).catch(error => console.error('Career Ops alerts failed:', error.message));
     const result = await pool.query(
         `SELECT id,kind,title,body,link,read_at AS "readAt",created_at AS "createdAt"
          FROM job_notifications WHERE username=$1 ORDER BY created_at DESC LIMIT 100`, [req.jobUsername]
@@ -1297,7 +1305,7 @@ app.post('/api/jobs/reports', requireAuth, asyncRoute(async (req, res) => {
 }));
 
 registerPasswordReset(app, { pool, ready });
-registerCareerOps(app, { pool, requireAuth, asyncRoute, ready });
+careerOps = registerCareerOps(app, { pool, requireAuth, asyncRoute, ready });
 
 app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError) return res.status(400).json({ error: error.message });

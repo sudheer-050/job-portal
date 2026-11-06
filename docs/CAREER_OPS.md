@@ -18,6 +18,19 @@ Career Ops is the portal's evidence-based job evaluation and application-quality
 | **Pipeline & follow-ups** | Maps portal data to canonical states (Evaluated, Applied, Responded, Interview, Offer, Hired…). Cadence: one follow-up after 7 days, one more 7 days later, then stop. Interview thank-you reminders. Drafts are yours to send. |
 | **Insights** | Funnel and conversion, advance rate by fit score / role type / source, and the skills that keep showing up as missing. Small samples are labelled. |
 
+## Inside the portal's own steps
+
+Career Ops is not a separate tool you have to remember to open. It runs inside the steps you already use:
+
+| Step | What Career Ops does there |
+|---|---|
+| **Discover jobs** | Automatically scans your ranked matches against your resume. Every job card gets a score out of 5, a verdict, a legitimacy tier and CV coverage, with the skills you are missing. A toolbar lets you sort by Career Ops score and hide anything below 4.0 or flagged as suspicious. It can be switched off (Auto-scan), and “Scan matches” rescans on demand. |
+| **Tailor & apply** | Checks the job first. Strong, legitimate jobs go straight through with no extra click. A job below 4.0/5, with a hard blocker, or that looks like a scam opens a short warning with the reason, a link to the full evaluation, and an explicit **Apply anyway**. Cancel (the default focus) sends nothing. |
+| **Applications** | Every application is evaluated when it starts, and each row shows its Career Ops score, verdict, legitimacy and CV match with a link to the full evaluation. |
+| **Action Center** | Follow-ups that are due or overdue (one after a week, one more a week later, then stop) appear as alerts, with a draft message ready in Career Ops. One alert per follow-up per week. |
+
+Scanning is deterministic and uses only your own resume and profile, so it is fast and costs nothing. Without an uploaded resume the toolbar asks you to upload one rather than scoring against nothing.
+
 ## Using it
 
 1. Upload your resume and complete your profile (years of experience, salary range, skills, sponsorship).
