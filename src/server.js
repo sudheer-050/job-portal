@@ -554,7 +554,7 @@ app.get('/api/jobs/meta', (_req, res) => res.json({
     name: 'Job Portal',
     version: APP_VERSION,
     level: 'stable',
-    releasedAt: '2026-09-29',
+    releasedAt: '2026-11-06',
     documents: [
         { name: 'Product guide', version: APP_VERSION, level: 'stable', path: '/jobs#profile' },
         { name: 'Release notes', version: APP_VERSION, level: 'stable', path: '/jobs/updates' },

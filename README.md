@@ -2,11 +2,11 @@
 
 ![Job Portal overview](docs/images/job-portal.png)
 
-**Product version:** 3.2.2
+**Product version:** 3.3.0
 
 **Release level:** Stable
 
-**Last reviewed:** 2026-09-29
+**Last reviewed:** 2026-11-06
 
 A self-hosted job discovery application that collects postings from multiple
 public job APIs and employer applicant-tracking systems, then ranks them against
@@ -35,7 +35,7 @@ It is designed for the candidate—not the employer. The portal keeps your verif
 
 For genuine unattended submission, configure the external submission runner and authenticated job-portal sessions. Without that connector, the portal safely prepares and reviews the application, then provides the employer link for completion.
 
-## Career Ops (unreleased)
+## Career Ops (new in v3.3)
 
 The **Career Ops** workspace scores any posting A–G on a 1–5 scale (and recommends against anything under 4.0), checks that the posting is real and still open, builds a fact-checked tailored resume and cover-letter draft from your own resume, and keeps your follow-ups and outcome patterns on track. Nothing is invented and nothing is submitted for you. See [docs/CAREER_OPS.md](docs/CAREER_OPS.md).
 
