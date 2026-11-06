@@ -1,0 +1,298 @@
+'use strict';
+
+const crypto = require('node:crypto');
+const { rateLimit } = require('express-rate-limit');
+const { canonicalizeUrl, cleanText } = require('../jobs/core');
+const { evaluateOffer } = require('./evaluate');
+const { checkLiveness } = require('./liveness');
+const { buildCoverLetter, renderHtml, renderMarkdown, tailorResume } = require('./resume');
+const { aiConfig, suggestRewrites } = require('./rewrite');
+const { optimizeForAts } = require('./ats');
+const { analyzePatterns, canonicalState, nextFollowUp } = require('./tracker');
+
+const MAX_DESCRIPTION = 30000;
+const BASE = '/api/jobs/careerops';
+
+const SCHEMA = `
+    CREATE TABLE IF NOT EXISTS job_evaluations (
+        username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+        job_id TEXT NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+        score NUMERIC(2,1) NOT NULL,
+        verdict VARCHAR(24) NOT NULL,
+        archetype TEXT,
+        legitimacy_tier VARCHAR(24),
+        coverage SMALLINT,
+        missing JSONB NOT NULL DEFAULT '[]'::jsonb,
+        result JSONB NOT NULL,
+        liveness JSONB,
+        tailored JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (username, job_id)
+    );
+    CREATE INDEX IF NOT EXISTS job_evaluations_user_score_idx ON job_evaluations (username, score DESC);
+    CREATE TABLE IF NOT EXISTS job_followups (
+        id BIGSERIAL PRIMARY KEY,
+        username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+        job_id TEXT NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+        channel VARCHAR(24) NOT NULL DEFAULT 'email',
+        note TEXT,
+        sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS job_followups_user_job_idx ON job_followups (username, job_id, sent_at);
+`;
+
+function toJob(row) {
+    return {
+        id: row.id, title: row.title, company: row.company, location: row.location, description: row.description || '',
+        salaryMin: row.salary_min, salaryMax: row.salary_max, workplaceType: row.workplace_type,
+        applyUrl: row.apply_url, postedAt: row.posted_at, source: row.source, metadata: row.metadata || {},
+    };
+}
+
+function pastedJob(body) {
+    const title = cleanText(body.title).slice(0, 200);
+    const description = String(body.description || '').slice(0, MAX_DESCRIPTION);
+    if (!title || description.trim().length < 80) return null;
+    const url = String(body.url || '').trim().slice(0, 2000);
+    const salaryMin = Number(body.salaryMin) || null;
+    const salaryMax = Number(body.salaryMax) || null;
+    return {
+        id: null, title, company: cleanText(body.company).slice(0, 200) || null, location: cleanText(body.location).slice(0, 200) || null,
+        description, salaryMin, salaryMax, workplaceType: ['remote', 'hybrid', 'onsite'].includes(body.workplaceType) ? body.workplaceType : 'onsite',
+        applyUrl: url, postedAt: null, source: 'manual', metadata: {},
+    };
+}
+
+function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = process.env, fetchImpl = fetch }) {
+    const outbound = rateLimit({ windowMs: 60 * 1000, limit: 12, standardHeaders: 'draft-7', legacyHeaders: false });
+    const aiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 5, standardHeaders: 'draft-7', legacyHeaders: false });
+
+    const schemaReady = ready.then(() => pool.query(SCHEMA));
+    schemaReady.catch(error => {
+        console.error('Career Ops schema failed:', error.message);
+        setTimeout(() => process.exit(1), 0);
+    });
+    // Every Career Ops route waits for its tables to exist.
+    app.use(BASE, (_req, _res, next) => { schemaReady.then(() => next(), next); });
+
+    async function context(username) {
+        const [profile, roles, resume] = await Promise.all([
+            pool.query('SELECT * FROM job_profiles WHERE username=$1', [username]),
+            pool.query('SELECT role FROM job_roles WHERE username=$1', [username]),
+            pool.query('SELECT resume_text FROM resumes WHERE username=$1', [username]),
+        ]);
+        const row = profile.rows[0] || {};
+        return {
+            profile: { ...row, remote_pref: row.work_style || 'any', experience_years: row.experience_years },
+            roles: roles.rows.map(item => item.role),
+            resumeText: resume.rows[0]?.resume_text || '',
+        };
+    }
+
+    async function loadJob(jobId) {
+        const found = await pool.query('SELECT * FROM job_postings WHERE id=$1', [String(jobId || '')]);
+        return found.rows[0] ? toJob(found.rows[0]) : null;
+    }
+
+    async function saveManualJob(job) {
+        const key = job.applyUrl ? canonicalizeUrl(job.applyUrl) : '';
+        const hash = crypto.createHash('sha1').update(key || `${job.title}|${job.company}|${job.description.slice(0, 200)}`).digest('hex').slice(0, 16);
+        const id = `manual:${hash}`;
+        await pool.query(
+            `INSERT INTO job_postings (id, source, source_job_id, title, company, location, salary_min, salary_max, workplace_type,
+                description, apply_url, canonical_key, last_seen_at, active)
+             VALUES ($1,'manual',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now(),true)
+             ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title, company=EXCLUDED.company, location=EXCLUDED.location,
+                salary_min=EXCLUDED.salary_min, salary_max=EXCLUDED.salary_max, workplace_type=EXCLUDED.workplace_type,
+                description=EXCLUDED.description, apply_url=EXCLUDED.apply_url, last_seen_at=now(), active=true`,
+            [id, hash, job.title, job.company, job.location, job.salaryMin, job.salaryMax, job.workplaceType,
+                job.description, job.applyUrl || `manual://${hash}`, key || `manual:${hash}`]
+        );
+        return { ...job, id };
+    }
+
+    async function persist(username, job, evaluation) {
+        await pool.query(
+            `INSERT INTO job_evaluations (username, job_id, score, verdict, archetype, legitimacy_tier, coverage, missing, result)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb)
+             ON CONFLICT (username, job_id) DO UPDATE SET score=$3, verdict=$4, archetype=$5, legitimacy_tier=$6,
+                coverage=$7, missing=$8::jsonb, result=$9::jsonb, updated_at=now()`,
+            [username, job.id, evaluation.score, evaluation.verdict.label, evaluation.meta.archetype, evaluation.meta.legitimacyTier,
+                evaluation.meta.coverage, JSON.stringify(evaluation.blocks.B.missing.map(item => item.term)), JSON.stringify(evaluation)]
+        );
+    }
+
+    // Evaluate a saved posting (jobId) or a pasted one (title + description); pasted ones can be saved to the pipeline.
+    app.post(`${BASE}/evaluate`, requireAuth, asyncRoute(async (req, res) => {
+        await ready;
+        let job = null;
+        if (req.body?.jobId) {
+            job = await loadJob(req.body.jobId);
+            if (!job) return res.status(404).json({ error: 'That job is no longer available.' });
+        } else {
+            job = pastedJob(req.body || {});
+            if (!job) return res.status(400).json({ error: 'Provide a job title and at least a short job description.' });
+        }
+        const { profile, roles, resumeText } = await context(req.jobUsername);
+        const evaluation = evaluateOffer({ job, profile, roles, resumeText });
+        if (!resumeText) evaluation.warnings = ['Upload your resume for an accurate CV match — scores without it only reflect your saved preferences.'];
+        if (!job.id && req.body?.save) job = await saveManualJob(job);
+        if (job.id) await persist(req.jobUsername, job, evaluation);
+        res.json({ jobId: job.id, job: { title: job.title, company: job.company, location: job.location, applyUrl: job.applyUrl }, evaluation });
+    }));
+
+    app.get(`${BASE}/evaluations`, requireAuth, asyncRoute(async (req, res) => {
+        const result = await pool.query(
+            `SELECT e.job_id AS "jobId", e.score::float AS score, e.verdict, e.archetype, e.legitimacy_tier AS "legitimacyTier",
+                    e.coverage, e.liveness->>'verdict' AS liveness, e.updated_at AS "updatedAt",
+                    (e.tailored IS NOT NULL) AS "hasResume", p.title, p.company, p.location, p.apply_url AS "applyUrl"
+             FROM job_evaluations e JOIN job_postings p ON p.id=e.job_id
+             WHERE e.username=$1 ORDER BY e.score DESC, e.updated_at DESC LIMIT 200`, [req.jobUsername]
+        );
+        res.json({ evaluations: result.rows });
+    }));
+
+    app.get(`${BASE}/evaluations/:jobId`, requireAuth, asyncRoute(async (req, res) => {
+        const result = await pool.query(
+            `SELECT e.result, e.liveness, e.updated_at AS "updatedAt", p.title, p.company, p.location, p.apply_url AS "applyUrl"
+             FROM job_evaluations e JOIN job_postings p ON p.id=e.job_id WHERE e.username=$1 AND e.job_id=$2`,
+            [req.jobUsername, req.params.jobId]
+        );
+        if (!result.rows.length) return res.status(404).json({ error: 'No evaluation yet for that job.' });
+        const row = result.rows[0];
+        res.json({ jobId: req.params.jobId, job: { title: row.title, company: row.company, location: row.location, applyUrl: row.applyUrl }, evaluation: row.result, liveness: row.liveness, updatedAt: row.updatedAt });
+    }));
+
+    // Is the posting still open? Only public https hosts are fetched.
+    app.post(`${BASE}/liveness`, requireAuth, outbound, asyncRoute(async (req, res) => {
+        const job = await loadJob(req.body?.jobId);
+        if (!job) return res.status(404).json({ error: 'Job not found.' });
+        let liveness;
+        try { liveness = await checkLiveness(job.applyUrl); }
+        catch (error) { return res.status(400).json({ error: error.message }); }
+        await pool.query('UPDATE job_evaluations SET liveness=$3::jsonb, updated_at=now() WHERE username=$1 AND job_id=$2', [req.jobUsername, job.id, JSON.stringify(liveness)]);
+        if (liveness.verdict === 'expired') {
+            await pool.query(`INSERT INTO job_notifications(username,kind,title,body,link) VALUES($1,'posting_expired',$2,$3,$4)`,
+                [req.jobUsername, `Posting closed: ${job.title}`.slice(0, 300), liveness.reason, '/jobs#careerops']).catch(() => {});
+        }
+        res.json({ jobId: job.id, liveness });
+    }));
+
+    // Tailored resume + cover letter from the user's own resume. Draft only; nothing is submitted.
+    app.post(`${BASE}/resume`, requireAuth, asyncRoute(async (req, res) => {
+        await ready;
+        const { profile, roles, resumeText } = await context(req.jobUsername);
+        if (!resumeText) return res.status(400).json({ error: 'Upload your source resume first — tailored resumes are built only from it.' });
+        let job = req.body?.jobId ? await loadJob(req.body.jobId) : pastedJob(req.body || {});
+        if (!job) return res.status(req.body?.jobId ? 404 : 400).json({ error: req.body?.jobId ? 'That job is no longer available.' : 'Provide a job title and job description.' });
+        const evaluation = evaluateOffer({ job, profile, roles, resumeText });
+        // Rebuild in rounds until the ATS estimate reaches the target (default 90), using only changes that stay true.
+        const target = Math.min(100, Math.max(50, Number(req.body?.targetScore) || 90));
+        const aiAllowed = req.body?.aiConsent === true && aiConfig(env).configured;
+        const optimized = await optimizeForAts({
+            resumeText, job, profile, target, rewrites: Array.isArray(req.body?.rewrites) ? req.body.rewrites : [],
+            askAi: aiAllowed ? async tailored => (await suggestRewrites({ roles: tailored.experience, job, env, fetchImpl })).suggestions : null,
+        });
+        const built = optimized.best.built;
+        const ats = { ...optimized.best.ats, target, reached: optimized.reached, rounds: optimized.rounds, explanation: optimized.explanation, aiUsed: optimized.aiUsed, aiError: optimized.aiError };
+        const cover = buildCoverLetter({ resumeText, job, profile, requirements: evaluation.blocks.B.requirements });
+        const payload = {
+            jobId: job.id, job: { title: job.title, company: job.company },
+            score: evaluation.score, verdict: evaluation.verdict,
+            resume: { structured: built.tailored, markdown: renderMarkdown(built.tailored), html: renderHtml(built.tailored) },
+            coverLetter: cover, changes: built.changes, factCheck: built.factCheck, keywords: built.keywords, warnings: built.warnings,
+            appliedRewrites: built.appliedRewrites, rejectedRewrites: built.rejectedRewrites, ats,
+            generatedAt: new Date().toISOString(),
+        };
+        if (job.id) {
+            await persist(req.jobUsername, job, evaluation);
+            await pool.query('UPDATE job_evaluations SET tailored=$3::jsonb, updated_at=now() WHERE username=$1 AND job_id=$2', [req.jobUsername, job.id, JSON.stringify(payload)]);
+        }
+        res.json(payload);
+    }));
+
+    app.get(`${BASE}/ai`, requireAuth, (_req, res) => {
+        const { configured, model } = aiConfig(env);
+        res.json({ configured, model: configured ? model : null });
+    });
+
+    // AI bullet rewording. Suggestions only: each is validated against hard rules and nothing is applied until the user accepts it.
+    app.post(`${BASE}/rewrite`, requireAuth, aiLimiter, asyncRoute(async (req, res) => {
+        await ready;
+        if (!aiConfig(env).configured) return res.status(503).json({ error: 'AI rewriting is not set up on this server. Ask the administrator to set CAREEROPS_AI_KEY.' });
+        if (req.body?.consent !== true) return res.status(400).json({ error: 'Confirm that you agree to send your resume bullets and this job description to the AI provider.' });
+        const { profile, resumeText } = await context(req.jobUsername);
+        if (!resumeText) return res.status(400).json({ error: 'Upload your source resume first.' });
+        const job = req.body?.jobId ? await loadJob(req.body.jobId) : pastedJob(req.body || {});
+        if (!job) return res.status(req.body?.jobId ? 404 : 400).json({ error: req.body?.jobId ? 'That job is no longer available.' : 'Provide a job title and job description.' });
+        const built = tailorResume({ resumeText, job, profile });
+        try {
+            const result = await suggestRewrites({ roles: built.tailored.experience, job, env, fetchImpl });
+            res.json({ jobId: job.id, ...result, rules: 'Suggestions never add numbers, tools, titles, credentials, leadership or authorship that are not already in the original line.' });
+        } catch (error) {
+            console.error('AI rewrite failed:', error.message);
+            res.status(502).json({ error: error.code === 'AI_NOT_CONFIGURED' ? error.message : 'The AI service could not complete that request. Try again in a moment.' });
+        }
+    }));
+
+    // Print-ready HTML of the last tailored resume (use the browser's Save as PDF).
+    app.get(`${BASE}/resume/:jobId/html`, requireAuth, asyncRoute(async (req, res) => {
+        const result = await pool.query('SELECT tailored FROM job_evaluations WHERE username=$1 AND job_id=$2', [req.jobUsername, req.params.jobId]);
+        const html = result.rows[0]?.tailored?.resume?.html;
+        if (!html) return res.status(404).json({ error: 'Build a tailored resume for that job first.' });
+        res.set({ 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'", 'X-Content-Type-Options': 'nosniff' });
+        res.send(html);
+    }));
+
+    async function pipelineRows(username) {
+        const result = await pool.query(
+            `WITH ids AS (
+                SELECT job_id FROM job_applications WHERE username=$1
+                UNION SELECT job_id FROM job_focus_plans WHERE username=$1
+                UNION SELECT job_id FROM job_evaluations WHERE username=$1
+             )
+             SELECT p.id AS "jobId", p.title, p.company, p.apply_url AS "applyUrl", p.source,
+                    a.status AS "applicationStatus", a.created_at AS "createdAt", a.applied_at AS "appliedAt", a.updated_at AS "updatedAt",
+                    f.stage AS "focusStage", f.next_follow_up AS "nextFollowUp",
+                    e.score::float AS score, e.verdict, e.archetype, e.legitimacy_tier AS "legitimacyTier", e.missing AS "missingKeywords",
+                    (SELECT max(i.scheduled_at) FROM job_interviews i WHERE i.username=$1 AND i.application_id=a.id AND i.scheduled_at <= now()) AS "interviewAt",
+                    EXISTS(SELECT 1 FROM job_interviews i WHERE i.username=$1 AND i.application_id=a.id) AS "hasInterview",
+                    (SELECT o.status FROM job_offers o WHERE o.username=$1 AND o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerStatus",
+                    (SELECT array_agg(fu.sent_at ORDER BY fu.sent_at) FROM job_followups fu WHERE fu.username=$1 AND fu.job_id=p.id) AS "followUps",
+                    EXISTS(SELECT 1 FROM job_hidden_jobs h WHERE h.username=$1 AND h.job_id=p.id) AS hidden
+             FROM ids JOIN job_postings p ON p.id=ids.job_id
+             LEFT JOIN job_applications a ON a.username=$1 AND a.job_id=p.id
+             LEFT JOIN job_focus_plans f ON f.username=$1 AND f.job_id=p.id
+             LEFT JOIN job_evaluations e ON e.username=$1 AND e.job_id=p.id
+             ORDER BY COALESCE(a.updated_at, e.updated_at, p.last_seen_at) DESC LIMIT 500`, [username]
+        );
+        return result.rows.map(row => ({ ...row, state: canonicalState(row) }));
+    }
+
+    app.get(`${BASE}/pipeline`, requireAuth, asyncRoute(async (req, res) => {
+        await ready;
+        const { profile } = await context(req.jobUsername);
+        const rows = await pipelineRows(req.jobUsername);
+        const withNext = rows.map(row => ({ ...row, next: nextFollowUp(row, { profileName: profile.full_name || '' }) }));
+        const order = { overdue: 0, due: 1, upcoming: 2, cold: 3 };
+        const actions = withNext.filter(row => row.next).sort((a, b) => (order[a.next.urgency] ?? 9) - (order[b.next.urgency] ?? 9) || String(a.next.dueAt).localeCompare(String(b.next.dueAt)));
+        res.json({ pipeline: withNext, actions });
+    }));
+
+    app.post(`${BASE}/followups`, requireAuth, asyncRoute(async (req, res) => {
+        const job = await loadJob(req.body?.jobId);
+        if (!job) return res.status(404).json({ error: 'Job not found.' });
+        const channel = ['email', 'linkedin', 'phone', 'portal', 'other'].includes(req.body?.channel) ? req.body.channel : 'email';
+        const note = String(req.body?.note || '').trim().slice(0, 1000) || null;
+        await pool.query('INSERT INTO job_followups(username,job_id,channel,note) VALUES($1,$2,$3,$4)', [req.jobUsername, job.id, channel, note]);
+        res.status(201).json({ ok: true });
+    }));
+
+    app.get(`${BASE}/patterns`, requireAuth, asyncRoute(async (req, res) => {
+        await ready;
+        res.json({ patterns: analyzePatterns(await pipelineRows(req.jobUsername)) });
+    }));
+}
+
+module.exports = { SCHEMA, pastedJob, registerCareerOps, toJob };

@@ -35,6 +35,10 @@ It is designed for the candidate—not the employer. The portal keeps your verif
 
 For genuine unattended submission, configure the external submission runner and authenticated job-portal sessions. Without that connector, the portal safely prepares and reviews the application, then provides the employer link for completion.
 
+## Career Ops (unreleased)
+
+The **Career Ops** workspace scores any posting A–G on a 1–5 scale (and recommends against anything under 4.0), checks that the posting is real and still open, builds a fact-checked tailored resume and cover-letter draft from your own resume, and keeps your follow-ups and outcome patterns on track. Nothing is invented and nothing is submitted for you. See [docs/CAREER_OPS.md](docs/CAREER_OPS.md).
+
 ## What's new in v3.2
 
 - One consistent charcoal, zinc, and violet visual system across the portal and version center

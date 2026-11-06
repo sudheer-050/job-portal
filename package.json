@@ -6,7 +6,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test src/jobs/*.test.js"
+    "test": "node --test"
   },
   "engines": {
     "node": ">=20"

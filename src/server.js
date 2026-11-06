@@ -10,6 +10,7 @@ const { rateLimit } = require('express-rate-limit');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const { createJobService } = require('./jobs/service');
+const { registerCareerOps } = require('./careerops/routes');
 const { version: APP_VERSION } = require('../package.json');
 
 const PORT = Number(process.env.PORT || 3000);
@@ -1290,6 +1291,8 @@ app.post('/api/jobs/reports', requireAuth, asyncRoute(async (req, res) => {
         [req.jobUsername, req.body?.jobId || null, category, String(req.body?.detail || '').slice(0, 5000) || null]);
     res.status(201).json({ report: result.rows[0] });
 }));
+
+registerCareerOps(app, { pool, requireAuth, asyncRoute, ready });
 
 app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError) return res.status(400).json({ error: error.message });
