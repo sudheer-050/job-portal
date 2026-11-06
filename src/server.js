@@ -11,6 +11,7 @@ const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const { createJobService } = require('./jobs/service');
 const { registerCareerOps } = require('./careerops/routes');
+const { registerPasswordReset } = require('./auth/passwordReset');
 const { version: APP_VERSION } = require('../package.json');
 
 const PORT = Number(process.env.PORT || 3000);
@@ -1295,6 +1296,7 @@ app.post('/api/jobs/reports', requireAuth, asyncRoute(async (req, res) => {
     res.status(201).json({ report: result.rows[0] });
 }));
 
+registerPasswordReset(app, { pool, ready });
 registerCareerOps(app, { pool, requireAuth, asyncRoute, ready });
 
 app.use((error, _req, res, _next) => {

@@ -39,6 +39,12 @@ For genuine unattended submission, configure the external submission runner and 
 
 The **Career Ops** workspace scores any posting A–G on a 1–5 scale (and recommends against anything under 4.0), checks that the posting is real and still open, builds a fact-checked tailored resume and cover-letter draft from your own resume, and keeps your follow-ups and outcome patterns on track. Nothing is invented and nothing is submitted for you. See [docs/CAREER_OPS.md](docs/CAREER_OPS.md).
 
+## Forgot password
+
+The log-in card has a **Forgot password?** link. It emails a single-use link (valid 30 minutes) to the address on the account; the link opens a reset page at `/jobs/reset`. The server answers every request identically, so it never reveals whether a username or email has an account, stores only a hash of each token, limits requests per IP and per account, and keeps the token in the URL fragment so it never reaches a server log.
+
+Sending needs SMTP. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` and `PUBLIC_BASE_URL` (see `.env.example`; Gmail works with an app password). Without SMTP no email is sent. For a private, owner-assisted setup you can set `PASSWORD_RESET_LOG_LINKS=true` to print links to the server log instead, but anyone who can read that log can then reset the account.
+
 ## What's new in v3.2
 
 - One consistent charcoal, zinc, and violet visual system across the portal and version center

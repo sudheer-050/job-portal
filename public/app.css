@@ -298,3 +298,13 @@ a.apply-link .icon { width: 12px; height: 12px; }
 .empty-state, .loading-state { text-align: center; color: var(--text-faint); font-size: 13.5px; padding: 48px 20px; border: 1px dashed var(--border-color); background: #fff; border-radius: var(--radius-lg); display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .empty-state .icon, .loading-state .icon { width: 28px; height: 28px; color: #94a3b8; }
 .loading-state .icon { animation: spin 1s linear infinite; color: var(--accent-brand); }
+
+/* ---- Forgot password ---- */
+.auth-link-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+.auth-link-row.center { justify-content: center; margin-top: 14px; }
+.link-btn { background: none; border: 0; padding: 2px 0; color: var(--accent-brand-ink); font: 500 13px var(--font-stack); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.link-btn:hover { color: var(--accent-brand); }
+.auth-form-title { font-size: 17px; margin: 0 0 6px; font-weight: 650; letter-spacing: -.01em; }
+.auth-footnote { text-align: center; margin: 16px 0 0; font-size: 13px; color: var(--text-faint); }
+.auth-footnote a { color: var(--accent-brand-ink); }
+.success-msg a { color: inherit; font-weight: 600; }

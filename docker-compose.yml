@@ -47,6 +47,14 @@ services:
       CAREEROPS_AI_KEY: ${CAREEROPS_AI_KEY:-}
       CAREEROPS_AI_MODEL: ${CAREEROPS_AI_MODEL:-}
       CAREEROPS_AI_URL: ${CAREEROPS_AI_URL:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      PASSWORD_RESET_LOG_LINKS: ${PASSWORD_RESET_LOG_LINKS:-false}
     depends_on:
       postgres:
         condition: service_healthy
