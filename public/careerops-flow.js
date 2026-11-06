@@ -13,6 +13,8 @@
     function savePrefs() { try { localStorage.setItem(STORE_KEY, JSON.stringify(prefs)); } catch (_) { /* ignore */ } }
 
     var cache = {};          // jobId -> summary from the server
+    var analysis = {};       // jobId -> full evaluation (loaded when "Why this score" is opened)
+    var open = {};           // jobId -> analysis panel is open
     var scanTimer = null;
     var scanning = false;
     var lastStatus = '';
@@ -66,8 +68,7 @@
 
     function decorate() {
         cards().forEach(function (card) {
-            var old = card.querySelector('.cof-row');
-            if (old) old.remove();
+            card.querySelectorAll('.cof-row, .cof-panel').forEach(function (node) { node.remove(); });
             var s = cache[cardId(card)];
             if (!s) return;
             var tierKind = s.tier === 'High Confidence' ? 'ok' : s.tier === 'Suspicious' ? 'bad' : 'warn';
@@ -77,13 +78,62 @@
                 '<span class="cof-pill">CV ' + esc(s.coverage) + '%</span>';
             if (s.blockers.length) html += '<span class="cof-pill bad">' + esc(s.blockers[0]) + '</span>';
             else if (s.missing.length) html += '<span class="cof-note">Not in your resume: ' + esc(s.missing.slice(0, 3).join(', ')) + '</span>';
+            var id = cardId(card);
+            html += '<button type="button" class="link-btn cof-why" data-cof-why="' + esc(id) + '" aria-expanded="' + (open[id] ? 'true' : 'false') + '">' + (open[id] ? 'Hide analysis' : 'Why this score') + '</button>';
             var row = document.createElement('div');
             row.className = 'cof-row';
             row.innerHTML = html;
             var anchor = card.querySelector('.job-meta') || card.querySelector('.job-card-top');
             if (anchor) anchor.insertAdjacentElement('afterend', row);
+            if (open[id]) {
+                var panelEl = document.createElement('div');
+                panelEl.className = 'cof-panel';
+                panelEl.innerHTML = analysis[id] ? analysisHtml(analysis[id]) : '<p class="cof-note">Loading the analysis…</p>';
+                row.insertAdjacentElement('afterend', panelEl);
+            }
         });
     }
+
+    /* ---------- Skills analysis (the "Why this score" panel) ---------- */
+    function statusPill(status) { return status === 'match' ? '<span class="cof-pill ok">Match</span>' : status === 'partial' ? '<span class="cof-pill warn">Partial</span>' : status === 'gap' ? '<span class="cof-pill bad">Gap</span>' : '<span class="cof-pill">Check</span>'; }
+    function chips(items, kind) { return items.length ? '<div class="cof-chips">' + items.map(function (i) { return '<span class="cof-pill ' + kind + '">' + esc(i.term) + '</span>'; }).join('') + '</div>' : '<p class="cof-note">None</p>'; }
+
+    function analysisHtml(data) {
+        var b = data.evaluation.blocks;
+        var reqs = b.B.requirements.slice(0, 8).map(function (r) {
+            return '<li>' + statusPill(r.status) + ' ' + esc(r.requirement.slice(0, 140)) + (r.priority === 'preferred' ? ' <span class="cof-note">(nice to have)</span>' : '') +
+                (r.evidence ? '<div class="cof-evidence">Your resume: “' + esc(r.evidence) + '”</div>' : '') + '</li>';
+        }).join('');
+        var signals = (b.G.signals || []).filter(function (s) { return s.kind !== 'positive'; }).slice(0, 3).map(function (s) { return '<li>' + esc(s.label) + (s.detail ? ' <span class="cof-note">— ' + esc(s.detail) + '</span>' : '') + '</li>'; }).join('');
+        return '<div class="cof-analysis">' +
+            '<h4>Skills you evidence</h4>' + chips(b.B.present, 'ok') +
+            '<h4>Mentioned only once</h4>' + chips(b.B.thin, 'warn') +
+            '<h4>Not in your resume</h4>' + chips(b.B.missing, 'bad') +
+            (reqs ? '<h4>Requirements</h4><ul class="cof-list">' + reqs + '</ul>' : '') +
+            '<h4>Fit</h4><ul class="cof-list"><li>Level: job is <strong>' + esc(b.C.jdLevel) + '</strong>, you are <strong>' + esc(b.C.yourLevel) + '</strong> (' + esc(String(b.C.fit).replace('-', ' ')) + ').</li><li>Pay: ' + esc(b.D.summary) + '</li></ul>' +
+            (signals ? '<h4>Posting signals</h4><ul class="cof-list">' + signals + '</ul>' : '') +
+            '<div class="cof-actions"><button type="button" class="btn btn-ghost btn-small" data-cof-full="' + esc(data.jobId) + '">Open full evaluation</button></div></div>';
+    }
+
+    function toggleAnalysis(id) {
+        open[id] = !open[id];
+        decorate();
+        if (!open[id] || analysis[id]) return;
+        call(API + '/evaluations/' + encodeURIComponent(id)).then(function (data) { analysis[id] = data; })
+            .catch(function () { analysis[id] = null; open[id] = false; })
+            .then(decorate);
+    }
+
+    recs.addEventListener('click', function (event) {
+        var why = event.target.closest('[data-cof-why]');
+        if (why) { toggleAnalysis(why.dataset.cofWhy); return; }
+        var full = event.target.closest('[data-cof-full]');
+        if (full) {
+            var save = recs.querySelector('[data-save-job="' + (window.CSS && CSS.escape ? CSS.escape(full.dataset.cofFull) : full.dataset.cofFull) + '"]');
+            var evaluate = save && save.closest('.job-card') && save.closest('.job-card').querySelector('[data-co-evaluate]');
+            if (evaluate) evaluate.click();
+        }
+    });
 
     function apply() {
         var hidden = 0;

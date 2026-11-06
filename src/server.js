@@ -810,7 +810,16 @@ app.get('/api/jobs/status', requireAuth, asyncRoute(async (_req, res) => {
 
 app.post('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
     if (!(HAGENT_URL && HAGENT_TOKEN && HAGENT_PROJECT_ID && HAGENT_RECRUITER_AGENT_ID && HAGENT_REVIEWER_AGENT_ID)) {
-        return res.status(503).json({ error: 'The Hagent recruiter is not configured yet.' });
+        // Without Hagent, Career Ops prepares the application (fact-checked resume, cover letter, ATS score).
+        // It waits "ready to submit" for the user to review and apply; it is never sent automatically.
+        if (!careerOps) return res.status(503).json({ error: 'Application preparation is not available yet.' });
+        try {
+            const prepared = await careerOps.createPreparedApplication(req.jobUsername, String(req.body?.jobId || ''));
+            return res.status(201).json({ application: prepared.application, preparedBy: 'career-ops', ats: prepared.ats, applyUrl: prepared.applyUrl });
+        } catch (error) {
+            if (!error.statusCode) throw error;
+            return res.status(error.statusCode).json({ error: error.message, ...(error.application ? { application: error.application } : {}) });
+        }
     }
     const jobId = String(req.body?.jobId || '');
     const [jobResult, resumeResult, profileResult, answerResult] = await Promise.all([
@@ -859,7 +868,8 @@ app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
                 a.quality_notes,a.requires_login,a.submission_mode,a.submission_provider,a.confirmation_reference,
                 a.error,a.created_at,a.updated_at,a.applied_at,
                 p.title,p.company,p.location,p.apply_url AS "applyUrl",p.source,
-                e.score::float AS "coScore",e.verdict AS "coVerdict",e.legitimacy_tier AS "coTier",e.coverage AS "coCoverage"
+                e.score::float AS "coScore",e.verdict AS "coVerdict",e.legitimacy_tier AS "coTier",e.coverage AS "coCoverage",
+                (e.tailored IS NOT NULL) AS "coHasResume"
          FROM job_applications a JOIN job_postings p ON p.id=a.job_id
          LEFT JOIN job_evaluations e ON e.username=a.username AND e.job_id=a.job_id
          WHERE a.username=$1 ORDER BY a.updated_at DESC`, [req.jobUsername]
@@ -1305,7 +1315,7 @@ app.post('/api/jobs/reports', requireAuth, asyncRoute(async (req, res) => {
 }));
 
 registerPasswordReset(app, { pool, ready });
-careerOps = registerCareerOps(app, { pool, requireAuth, asyncRoute, ready });
+careerOps = registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, hooks: { recordApplicationEvent, notifyUser } });
 
 app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError) return res.status(400).json({ error: error.message });

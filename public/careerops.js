@@ -8,7 +8,7 @@
     if (!card || !panel || !tabs) return;
 
     var state = { tab: 'evaluate', jobId: '', draft: {}, evaluation: null, resume: null, savedJobs: [], pipeline: [], started: false, extra: null,
-        ai: null, suggestions: null, target: 90, aiConsent: false };
+        ai: null, suggestions: null, target: 90, aiConsent: false, application: null };
 
     function esc(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
@@ -22,7 +22,7 @@
         if (options.body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(options.body); }
         return fetch(path, init).then(function (res) {
             return res.json().catch(function () { return {}; }).then(function (data) {
-                if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+                if (!res.ok) { var failure = new Error(data.error || 'Something went wrong.'); failure.data = data; throw failure; }
                 return data;
             });
         });
@@ -231,7 +231,8 @@
             '<button type="button" class="btn btn-ghost btn-small" id="coDownloadHtml">Download HTML</button>' +
             (r.jobId ? '<a class="btn btn-primary btn-small" target="_blank" rel="noopener" href="' + API + '/resume/' + encodeURIComponent(r.jobId) + '/html">Open print-ready (Save as PDF)</a>' : '') +
             '</div><textarea id="coResumeText" readonly rows="16"></textarea><p class="co-note">Single column, standard headings, no tables or graphics — parsed cleanly by applicant tracking systems.</p></div>';
-        html += '<div class="co-card"><h4>Cover letter draft</h4><p class="co-note">' + esc(r.coverLetter.draftNotice) + '</p><div class="co-row" style="margin-top:6px"><button type="button" class="btn btn-ghost btn-small" id="coCopyCover">Copy</button></div><textarea id="coCoverText" rows="14"></textarea></div>';
+        html += '<div class="co-card"><h4>Cover letter draft</h4><p class="co-note">' + esc(r.coverLetter.draftNotice) + '</p><div class="co-row" style="margin-top:6px"><button type="button" class="btn btn-ghost btn-small" id="coCopyCover">Copy</button></div><textarea id="coCoverText" rows="14"></textarea></div>' +
+            '<div class="co-row"><button type="button" class="btn btn-primary" id="coGoApply">Next: apply to this job &rarr;</button></div>';
         document.getElementById('coResumeOut').innerHTML = html;
         document.getElementById('coResumeText').value = r.resume.markdown;
         document.getElementById('coCoverText').value = r.coverLetter.text;
@@ -268,6 +269,74 @@
             if (data.jobId && !state.jobId) { state.jobId = data.jobId; }
             renderResume();
         }).catch(function (e) { showError(e.message); }).then(function () { busy(button, false); });
+    }
+
+    /* ---------- Apply & track: one job, start to finish ---------- */
+    function safeUrl(url) { return /^https?:\/\//i.test(String(url || '')) ? String(url) : ''; }
+    function flaggedEvaluation(ev) { return !!(ev.blockers.length || ev.legitimacy.tier === 'Suspicious' || ev.verdict.action !== 'apply' || ev.score < 4); }
+
+    function renderApply() {
+        panel.innerHTML =
+            '<p class="hint">Apply to one job from start to finish: check the fit, prepare a fact-checked resume and cover letter, start the application, apply on the employer\'s site, and track it. Nothing is ever sent for you.</p>' +
+            '<label for="coJob">Job</label><select id="coJob">' + jobOptions() + '</select>' +
+            '<div id="coPasteWrap">' + (state.jobId ? '' : pasteFields()) + '</div>' +
+            '<div class="co-row"><button type="button" class="btn btn-primary" id="coStartBtn">Start application</button></div>' +
+            '<p class="co-note">Starting runs the Career Ops check first. A pasted job needs the https link to its posting so you can open the employer page.</p>' +
+            '<div class="co-error" id="coError" role="alert" hidden></div><div id="coApplyOut"></div>';
+        document.getElementById('coJob').value = state.jobId;
+        if (state.application) renderApplyOut(state.application);
+    }
+
+    function renderApplyWarning(ev) {
+        var tierKind = ev.legitimacy.tier === 'High Confidence' ? 'ok' : ev.legitimacy.tier === 'Suspicious' ? 'bad' : 'warn';
+        document.getElementById('coApplyOut').innerHTML = '<div class="co-card"><h4>Check before you apply</h4>' +
+            '<div class="co-chips">' + chip(ev.score.toFixed(1) + '/5 · ' + ev.verdict.label, scoreClass(ev.score) === 'good' ? 'ok' : scoreClass(ev.score) === 'mid' ? 'warn' : 'bad') + chip(ev.legitimacy.tier, tierKind) + '</div>' +
+            '<p>' + esc(ev.blockers[0] || ev.verdict.text) + '</p><p class="co-note">Fewer, better-fit applications work better. Career Ops recommends applying only at 4.0/5 or above.</p>' +
+            '<div class="co-row"><button type="button" class="btn btn-ghost" id="coApplyBack">Back</button><button type="button" class="btn btn-primary" id="coStartAnyway">Start anyway</button></div></div>';
+    }
+
+    function renderApplyOut(r) {
+        var app = r.application, id = Number(app.id), url = safeUrl(r.applyUrl);
+        document.getElementById('coApplyOut').innerHTML = '<div class="co-card"><h4>Application started — ready for your review</h4>' +
+            '<div class="co-chips">' + chip('Job fit ' + r.summary.score.toFixed(1) + '/5 · ' + r.summary.verdict, r.summary.score >= 4 ? 'ok' : 'warn') + chip('ATS ' + r.ats.score + '/100', r.ats.reached ? 'ok' : 'warn') + chip('Fact check passed', 'ok') + '</div>' +
+            (r.ats.reached ? '' : '<p class="co-note">' + esc(r.ats.explanation) + '</p>') +
+            '<ol class="co-steps-list">' +
+            '<li><strong>Review</strong> your documents: <a href="' + API + '/resume/' + encodeURIComponent(app.job_id) + '/html" target="_blank" rel="noopener">print-ready resume</a> · <a href="/api/jobs/applications/' + id + '/resume">resume (.md)</a> · <a href="/api/jobs/applications/' + id + '/cover-letter">cover letter (.md)</a>. Adjust them in step 2 if you want changes.</li>' +
+            '<li><strong>Apply</strong> on the employer\'s site: ' + (url ? '<a class="btn btn-primary btn-small" target="_blank" rel="noopener noreferrer" href="' + esc(url) + '">Open employer application</a>' : '<span class="co-note">No link available for this posting.</span>') + '</li>' +
+            '<li id="coTrackStep"><strong>Track</strong> it: once you have submitted, press <button type="button" class="btn btn-ghost btn-small" id="coMarkApplied" data-app="' + id + '">I applied</button>. A follow-up reminder appears in a week.</li>' +
+            '</ol></div>';
+    }
+
+    function startApplication(button, force) {
+        showError('');
+        var payload = jobPayload();
+        var out = document.getElementById('coApplyOut');
+        if (out) out.innerHTML = '';
+        busy(button, true, 'Checking…');
+        var check = force ? Promise.resolve(null) : call(API + '/evaluate', { method: 'POST', body: Object.assign({}, payload, { save: false }) });
+        return check.then(function (data) {
+            if (data && flaggedEvaluation(data.evaluation)) { renderApplyWarning(data.evaluation); return null; }
+            button.textContent = 'Preparing…';
+            return call(API + '/apply', { method: 'POST', body: payload });
+        }).then(function (result) {
+            if (!result) return;
+            state.application = result;
+            if (!state.jobId && result.application.job_id) {
+                state.jobId = result.application.job_id;
+                state.extra = { id: state.jobId, label: (state.draft.title || 'Job') + (state.draft.company ? ' — ' + state.draft.company : '') };
+            }
+            renderApply();
+        }).catch(function (error) {
+            var existing = error.data && error.data.application;
+            showError(existing ? error.message + ' Open the Applications section to continue it.' : error.message);
+        }).then(function () { busy(button, false); });
+    }
+
+    function markApplied(button) {
+        busy(button, true, 'Saving…');
+        call('/api/jobs/applications/' + encodeURIComponent(button.dataset.app) + '/applied', { method: 'POST' }).then(function () {
+            document.getElementById('coTrackStep').innerHTML = '<strong>Tracked.</strong> ' + chip('Applied', 'ok') + ' It moved to Applied jobs, and Career Ops will remind you to follow up in a week. <a href="#applications" data-co-goto="applications">View in Applications</a>';
+        }).catch(function (error) { busy(button, false); showError(error.message); });
     }
 
     /* ---------- Pipeline tab ---------- */
@@ -324,6 +393,7 @@
         tabs.querySelectorAll('[data-co-tab]').forEach(function (b) { b.classList.toggle('active', b.dataset.coTab === tab); });
         if (tab === 'evaluate') renderEvaluate();
         else if (tab === 'resume') renderResume();
+        else if (tab === 'apply') renderApply();
         else if (tab === 'pipeline') renderPipeline();
         else renderInsights();
     }
@@ -351,8 +421,8 @@
         if (event.target.id !== 'coJob') return;
         readDraft();
         state.jobId = event.target.value;
-        state.evaluation = null; state.resume = null;
-        if (state.tab === 'resume') renderResume(); else renderEvaluate();
+        state.evaluation = null; state.resume = null; state.application = null;
+        if (state.tab === 'resume') renderResume(); else if (state.tab === 'apply') renderApply(); else renderEvaluate();
     });
 
     panel.addEventListener('click', function (event) {
@@ -360,6 +430,11 @@
         if (!t) return;
         if (t.id === 'coEvalBtn') runEvaluate(t);
         else if (t.id === 'coResumeBtn') { readDraft(); setTab('resume'); }
+        else if (t.id === 'coStartBtn') startApplication(t, false);
+        else if (t.id === 'coStartAnyway') startApplication(document.getElementById('coStartBtn'), true);
+        else if (t.id === 'coApplyBack') { var holder = document.getElementById('coApplyOut'); if (holder) holder.innerHTML = ''; }
+        else if (t.id === 'coMarkApplied') markApplied(t);
+        else if (t.id === 'coGoApply') { readDraft(); setTab('apply'); }
         else if (t.id === 'coBuildBtn') runBuild(t, false);
         else if (t.id === 'coRebuildWording') runBuild(t, true);
         else if (t.id === 'coPreviewAi') {
