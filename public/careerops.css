@@ -8,7 +8,7 @@
 #careerops label.co-check { display:flex; gap:8px; align-items:center; margin-top:10px; font-size:13px; font-weight:500; color:var(--text-muted); text-transform:none; letter-spacing:0; }
 #careerops .co-check input { width:auto; }
 
-#careerops .co-hero { display:flex; flex-wrap:wrap; gap:18px; align-items:center; margin:20px 0 6px; padding:18px; border:1px solid var(--border-color-soft); border-radius:var(--radius-lg, 14px); background:rgba(255,255,255,.02); }
+#careerops .co-hero { display:flex; flex-wrap:wrap; gap:18px; align-items:center; margin:20px 0 6px; padding:18px; border:1px solid var(--border-color-soft); border-radius:var(--radius-lg, 14px); background:var(--bg-card-hover); }
 #careerops .co-score { min-width:96px; text-align:center; }
 #careerops .co-score strong { display:block; font-size:38px; line-height:1; letter-spacing:-.02em; }
 #careerops .co-score span { font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em; }
@@ -23,10 +23,10 @@
 #careerops .co-chip { font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:999px; border:1px solid var(--border-color); color:var(--text-muted); }
 #careerops .co-chip.ok { color:var(--accent-green); background:var(--accent-green-soft); border-color:transparent; }
 #careerops .co-chip.warn { color:var(--accent-amber); background:var(--accent-amber-soft); border-color:transparent; }
-#careerops .co-chip.bad { color:var(--accent-red); background:rgba(248,113,113,.14); border-color:transparent; }
-#careerops .co-chip.brand { color:var(--accent-brand); background:var(--accent-brand-soft); border-color:transparent; }
+#careerops .co-chip.bad { color:var(--accent-red); background:var(--accent-red-soft); border-color:transparent; }
+#careerops .co-chip.brand { color:var(--accent-brand-ink); background:var(--accent-brand-soft); border-color:transparent; }
 
-#careerops details.co-block { border:1px solid var(--border-color-soft); border-radius:12px; margin-top:10px; background:rgba(255,255,255,.015); }
+#careerops details.co-block { border:1px solid var(--border-color-soft); border-radius:12px; margin-top:10px; background:var(--bg-card-hover); }
 #careerops details.co-block > summary { cursor:pointer; padding:12px 14px; font-weight:700; font-size:14px; list-style:none; display:flex; justify-content:space-between; gap:10px; }
 #careerops details.co-block > summary::-webkit-details-marker { display:none; }
 #careerops details.co-block > summary small { color:var(--text-faint); font-weight:600; }
@@ -41,7 +41,7 @@
 #careerops .co-req:first-child { border-top:0; }
 #careerops .co-req .co-evidence { grid-column:2; color:var(--text-faint); font-size:12.5px; }
 
-#careerops .co-card { border:1px solid var(--border-color-soft); border-radius:12px; padding:14px; margin-top:12px; background:rgba(255,255,255,.015); }
+#careerops .co-card { border:1px solid var(--border-color-soft); border-radius:12px; padding:14px; margin-top:12px; background:var(--bg-card-hover); }
 #careerops .co-card h4 { margin:0 0 4px; font-size:14px; }
 #careerops .co-card textarea { margin-top:8px; min-height:140px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; }
 #careerops .co-urgency { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
