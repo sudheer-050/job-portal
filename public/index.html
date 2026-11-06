@@ -808,6 +808,7 @@
             applicationsContainer.innerHTML = shown.map(item => `
                 <div class="application-row">
                     <div class="application-row-head"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.company || 'Company not listed')} &middot; ${escapeHtml(item.source || '')}</small></div><span class="application-status ${item.status === 'applied' ? 'applied' : ''}">${escapeHtml(item.status.replaceAll('_',' '))}${item.quality_score ? ` &middot; ${item.quality_score}/100` : ''}</span></div>
+                    ${item.coScore != null ? `<div class="source-status">Career Ops: <strong>${Number(item.coScore).toFixed(1)}/5</strong> &middot; ${escapeHtml(item.coVerdict || '')} &middot; ${escapeHtml(item.coTier || '')}${item.coCoverage != null ? ` &middot; CV match ${Number(item.coCoverage)}%` : ''} &middot; <a href="#careerops">Open Career Ops</a></div>` : ''}
                     ${item.error ? `<div class="error-msg" style="display:block">${escapeHtml(item.error)}</div>` : ''}
                     ${item.requires_login ? '<div class="source-status">Your login is required on the employer portal.</div>' : ''}
                     <div class="application-actions">
@@ -974,5 +975,6 @@
     </script>
     <script src="/jobs/forgot.js"></script>
     <script src="/jobs/careerops.js"></script>
+    <script src="/jobs/careerops-flow.js"></script>
 </body>
 </html>

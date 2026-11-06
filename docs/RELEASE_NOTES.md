@@ -6,6 +6,14 @@
 
 **Last reviewed:** 2026-11-06
 
+## Unreleased — Career Ops inside the portal's steps
+
+- **Discover:** matches are scanned automatically against your resume; each job card shows its Career Ops score, verdict, legitimacy and CV coverage, with sorting by score and an option to hide jobs below 4.0 or flagged as suspicious.
+- **Tailor & apply:** a check before applying warns about low-fit or suspicious jobs (Cancel is the default; "Apply anyway" is always available). Strong jobs proceed with no extra click.
+- **Applications:** every application is evaluated when it starts and shows its result.
+- **Action Center:** due and overdue follow-ups raise alerts.
+- New endpoints `POST /api/jobs/careerops/scan` and `GET /api/jobs/careerops/scores`.
+
 ## Unreleased — Forgot password
 
 - Added a **Forgot password?** link to the log-in page with a secure email reset flow: single-use 30-minute tokens (only a hash is stored), identical responses for every input, per-IP and per-account limits, and a standalone `/jobs/reset` page that keeps the token in the URL fragment.

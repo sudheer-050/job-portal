@@ -8,6 +8,7 @@ const { checkLiveness } = require('./liveness');
 const { buildCoverLetter, renderHtml, renderMarkdown, tailorResume } = require('./resume');
 const { aiConfig, suggestRewrites } = require('./rewrite');
 const { optimizeForAts } = require('./ats');
+const { alertsFromPipeline, summarizeEvaluation, summaryFromRow } = require('./flow');
 const { analyzePatterns, canonicalState, nextFollowUp } = require('./tracker');
 
 const MAX_DESCRIPTION = 30000;
@@ -67,6 +68,7 @@ function pastedJob(body) {
 function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = process.env, fetchImpl = fetch }) {
     const outbound = rateLimit({ windowMs: 60 * 1000, limit: 12, standardHeaders: 'draft-7', legacyHeaders: false });
     const aiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 5, standardHeaders: 'draft-7', legacyHeaders: false });
+    const scanLimiter = rateLimit({ windowMs: 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false });
 
     const schemaReady = ready.then(() => pool.query(SCHEMA));
     schemaReady.catch(error => {
@@ -293,6 +295,83 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         await ready;
         res.json({ patterns: analyzePatterns(await pipelineRows(req.jobUsername)) });
     }));
+
+    // ---- Integration with the portal's own steps ----
+
+    const cleanIds = value => [...new Set((Array.isArray(value) ? value : String(value || '').split(',')).map(item => String(item).trim()))]
+        .filter(id => id && id.length <= 200).slice(0, 100);
+
+    // Scan a batch of jobs (the user's ranked matches) against their resume and profile, storing each evaluation.
+    app.post(`${BASE}/scan`, requireAuth, scanLimiter, asyncRoute(async (req, res) => {
+        await ready;
+        const ids = cleanIds(req.body?.jobIds);
+        if (!ids.length) return res.status(400).json({ error: 'Provide the job ids to scan.' });
+        const { profile, roles, resumeText } = await context(req.jobUsername);
+        if (!resumeText) return res.json({ results: [], resumeMissing: true, message: 'Upload your resume so Career Ops can scan your matches.' });
+        const rows = (await pool.query('SELECT * FROM job_postings WHERE id = ANY($1::text[])', [ids])).rows;
+        const results = [];
+        for (const row of rows) {
+            const job = toJob(row);
+            try {
+                const evaluation = evaluateOffer({ job, profile, roles, resumeText });
+                await persist(req.jobUsername, job, evaluation);
+                results.push(summarizeEvaluation(job.id, evaluation));
+            } catch (error) { console.error('scan failed for one job:', error.message); }
+        }
+        results.sort((a, b) => b.score - a.score);
+        res.json({ results, scanned: results.length, requested: ids.length, resumeMissing: false });
+    }));
+
+    // Cached scores (no recomputation). `stale` means the resume changed after the evaluation.
+    app.get(`${BASE}/scores`, requireAuth, asyncRoute(async (req, res) => {
+        const ids = cleanIds(req.query.ids);
+        if (!ids.length) return res.json({ scores: {} });
+        const result = await pool.query(
+            `SELECT e.job_id AS "jobId", e.score::float AS score, e.verdict, e.legitimacy_tier AS tier, e.coverage, e.archetype,
+                    e.missing, e.result, e.updated_at AS "updatedAt", (r.uploaded_at IS NOT NULL AND e.updated_at < r.uploaded_at) AS stale
+             FROM job_evaluations e LEFT JOIN resumes r ON r.username=e.username
+             WHERE e.username=$1 AND e.job_id = ANY($2::text[])`, [req.jobUsername, ids]
+        );
+        const scores = {};
+        for (const row of result.rows) scores[row.jobId] = { ...summaryFromRow(row), stale: row.stale };
+        res.json({ scores });
+    }));
+
+    // Called when an application is started, so every application carries a Career Ops evaluation.
+    async function evaluateJobForUser(username, jobId) {
+        await schemaReady;
+        const { profile, roles, resumeText } = await context(username);
+        if (!resumeText) return null;
+        const job = await loadJob(jobId);
+        if (!job) return null;
+        const evaluation = evaluateOffer({ job, profile, roles, resumeText });
+        await persist(username, job, evaluation);
+        return summarizeEvaluation(job.id, evaluation);
+    }
+
+    // Turn due or overdue follow-ups into Action Center notifications (once per follow-up per week).
+    const lastAlertSync = new Map();
+    async function syncAlerts(username, { force = false, minIntervalMs = 5 * 60 * 1000 } = {}) {
+        const last = lastAlertSync.get(username) || 0;
+        if (!force && Date.now() - last < minIntervalMs) return 0;
+        lastAlertSync.set(username, Date.now());
+        await schemaReady;
+        const { profile } = await context(username);
+        const rows = (await pipelineRows(username)).map(row => ({ ...row, next: nextFollowUp(row, { profileName: profile.full_name || '' }) }));
+        let created = 0;
+        for (const alert of alertsFromPipeline(rows)) {
+            const result = await pool.query(
+                `INSERT INTO job_notifications(username,kind,title,body,link)
+                 SELECT $1::varchar(20),$2::varchar(40),$3::text,$4::text,$5::text
+                 WHERE NOT EXISTS (SELECT 1 FROM job_notifications WHERE username=$1 AND kind=$2 AND title=$3 AND created_at > now() - interval '7 days')`,
+                [username, alert.kind, alert.title, alert.body, alert.link]
+            );
+            created += result.rowCount;
+        }
+        return created;
+    }
+
+    return { evaluateJobForUser, schemaReady, syncAlerts };
 }
 
 module.exports = { SCHEMA, pastedJob, registerCareerOps, toJob };
