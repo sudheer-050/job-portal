@@ -1,0 +1,66 @@
+/* Career Ops workspace — uses the portal's existing theme tokens. */
+#careerops .co-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+#careerops .co-grid .wide { grid-column:1 / -1; }
+#careerops .co-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:14px; }
+#careerops .co-note { color:var(--text-faint); font-size:12px; line-height:1.5; margin:6px 0 0; }
+#careerops .co-error { color:var(--accent-red); font-size:13px; margin-top:12px; }
+#careerops .co-empty { color:var(--text-faint); font-size:13px; padding:10px 0; }
+#careerops label.co-check { display:flex; gap:8px; align-items:center; margin-top:10px; font-size:13px; font-weight:500; color:var(--text-muted); text-transform:none; letter-spacing:0; }
+#careerops .co-check input { width:auto; }
+
+#careerops .co-hero { display:flex; flex-wrap:wrap; gap:18px; align-items:center; margin:20px 0 6px; padding:18px; border:1px solid var(--border-color-soft); border-radius:var(--radius-lg, 14px); background:rgba(255,255,255,.02); }
+#careerops .co-score { min-width:96px; text-align:center; }
+#careerops .co-score strong { display:block; font-size:38px; line-height:1; letter-spacing:-.02em; }
+#careerops .co-score span { font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em; }
+#careerops .co-score.good strong { color:var(--accent-green); }
+#careerops .co-score.mid strong { color:var(--accent-amber); }
+#careerops .co-score.low strong { color:var(--accent-red); }
+#careerops .co-verdict { flex:1 1 260px; min-width:0; }
+#careerops .co-verdict h3 { margin:0 0 4px; font-size:17px; }
+#careerops .co-verdict p { margin:0; color:var(--text-muted); font-size:13.5px; line-height:1.5; }
+
+#careerops .co-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+#careerops .co-chip { font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:999px; border:1px solid var(--border-color); color:var(--text-muted); }
+#careerops .co-chip.ok { color:var(--accent-green); background:var(--accent-green-soft); border-color:transparent; }
+#careerops .co-chip.warn { color:var(--accent-amber); background:var(--accent-amber-soft); border-color:transparent; }
+#careerops .co-chip.bad { color:var(--accent-red); background:rgba(248,113,113,.14); border-color:transparent; }
+#careerops .co-chip.brand { color:var(--accent-brand); background:var(--accent-brand-soft); border-color:transparent; }
+
+#careerops details.co-block { border:1px solid var(--border-color-soft); border-radius:12px; margin-top:10px; background:rgba(255,255,255,.015); }
+#careerops details.co-block > summary { cursor:pointer; padding:12px 14px; font-weight:700; font-size:14px; list-style:none; display:flex; justify-content:space-between; gap:10px; }
+#careerops details.co-block > summary::-webkit-details-marker { display:none; }
+#careerops details.co-block > summary small { color:var(--text-faint); font-weight:600; }
+#careerops .co-body { padding:0 14px 14px; font-size:13.5px; line-height:1.55; color:var(--text-muted); }
+#careerops .co-body p { margin:6px 0; }
+#careerops .co-body ul { margin:6px 0 6px 18px; padding:0; }
+#careerops .co-body li { margin:4px 0; }
+#careerops .co-bar { height:8px; border-radius:999px; background:var(--border-color-soft); overflow:hidden; margin:8px 0; }
+#careerops .co-bar > i { display:block; height:100%; background:var(--accent-brand); }
+
+#careerops .co-req { display:grid; grid-template-columns:auto 1fr; gap:4px 10px; padding:8px 0; border-top:1px solid var(--border-color-soft); }
+#careerops .co-req:first-child { border-top:0; }
+#careerops .co-req .co-evidence { grid-column:2; color:var(--text-faint); font-size:12.5px; }
+
+#careerops .co-card { border:1px solid var(--border-color-soft); border-radius:12px; padding:14px; margin-top:12px; background:rgba(255,255,255,.015); }
+#careerops .co-card h4 { margin:0 0 4px; font-size:14px; }
+#careerops .co-card textarea { margin-top:8px; min-height:140px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; }
+#careerops .co-urgency { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
+#careerops .co-urgency.overdue { color:var(--accent-red); }
+#careerops .co-urgency.due { color:var(--accent-amber); }
+#careerops .co-urgency.upcoming, #careerops .co-urgency.cold { color:var(--text-faint); }
+
+#careerops .co-tablewrap { overflow-x:auto; margin-top:10px; }
+#careerops table.co-table { width:100%; border-collapse:collapse; font-size:13px; }
+#careerops table.co-table th, #careerops table.co-table td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border-color-soft); white-space:nowrap; }
+#careerops table.co-table td.wrap { white-space:normal; min-width:180px; }
+#careerops table.co-table th { color:var(--text-faint); font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+
+#careerops .co-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; margin-top:12px; }
+#careerops .co-stat { border:1px solid var(--border-color-soft); border-radius:12px; padding:12px; }
+#careerops .co-stat strong { display:block; font-size:22px; }
+#careerops .co-stat span { font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.05em; }
+
+@media (max-width: 640px) {
+    #careerops .co-grid { grid-template-columns:1fr; }
+    #careerops .co-hero { padding:14px; }
+}

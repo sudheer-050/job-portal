@@ -6,6 +6,15 @@
 
 **Last reviewed:** 2026-09-29
 
+## Unreleased — Career Ops
+
+- Added a Career Ops workspace: A–G job evaluation with a 1–5 score, posting-legitimacy and liveness checks, a fact-checked tailored resume and cover-letter draft, canonical pipeline states with follow-up cadence, and outcome insights. See [CAREER_OPS.md](CAREER_OPS.md).
+- Added an ATS score with an optimiser that rebuilds the resume in rounds toward a target (default 90) using only truthful changes, and reports the honest maximum when a job needs skills the resume does not show.
+- Added optional AI bullet rewording behind hard, code-enforced rules (`CAREEROPS_AI_KEY`); off by default and opt-in per request.
+- Added an Evaluate button to every match card.
+- New tables `job_evaluations` and `job_followups` are created automatically; no manual migration is needed.
+- Version number and release date are intentionally unchanged until this is released.
+
 ## 3.2.2 — Product onboarding guide
 
 - Added a plain-language explanation of what the Job Portal is and who it serves.

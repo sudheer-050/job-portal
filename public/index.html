@@ -328,6 +328,7 @@
         .empty-state .icon, .loading-state .icon { width: 28px; height: 28px; color: var(--border-color); }
         .loading-state .icon { animation: spin 1s linear infinite; color: var(--accent-brand); }
     </style>
+    <link rel="stylesheet" href="/careerops.css">
 </head>
 <body>
     <header>
@@ -395,6 +396,7 @@
                     <div class="workspace-nav" id="workspaceNav">
                         <button type="button" data-workspace-target="discover">Discover jobs</button>
                         <button type="button" data-workspace-target="focus">Focus plan</button>
+                        <button type="button" data-workspace-target="careerops">Career Ops</button>
                         <button type="button" data-workspace-target="applications">Applications</button>
                         <button type="button" data-workspace-target="profile">Profile &amp; resume</button>
                         <button type="button" data-workspace-target="schedule">Interviews &amp; offers</button>
@@ -544,6 +546,17 @@
                         <div class="mini-list" id="reviewsList"></div>
                     </article>
                 </section>
+                <div class="card application-panel" id="careerops" data-workspace-view="careerops" hidden>
+                    <h2>Career Ops</h2>
+                    <p class="hint">Deterministic, evidence-based job evaluation. Everything is built from your own resume and profile — nothing is invented and nothing is submitted for you.</p>
+                    <div class="application-tabs" id="coTabs" role="tablist">
+                        <button type="button" class="btn btn-ghost active" data-co-tab="evaluate">Evaluate a job</button>
+                        <button type="button" class="btn btn-ghost" data-co-tab="resume">Resume &amp; cover letter</button>
+                        <button type="button" class="btn btn-ghost" data-co-tab="pipeline">Pipeline &amp; follow-ups</button>
+                        <button type="button" class="btn btn-ghost" data-co-tab="insights">Insights</button>
+                    </div>
+                    <div id="coPanel"></div>
+                </div>
                 <div class="card application-panel" id="applications" data-workspace-view="applications">
                     <h2>Application tracker</h2>
                     <p class="hint">Hagent tailors and independently verifies each resume. Login or direct-portal steps stay visible here.</p>
@@ -690,14 +703,15 @@
         const WORKSPACE_VIEWS = {
             discover: ['Discover jobs','Search, shortlist, and act on your strongest matches.'],
             focus: ['Focus plan','Keep priority roles, follow-ups, and interview training in one place.'],
+            careerops: ['Career Ops','Score each job A–F, check it is real and open, build a tailored resume, and never miss a follow-up.'],
             applications: ['Applications','Track preparation, review, submission, and completed applications.'],
             profile: ['Profile & resume','Manage the verified information Hagent uses for matching and applications.'],
             schedule: ['Interviews & offers','Coordinate interviews, offers, events, and company research.'],
             alerts: ['Action center','See what needs attention and open verified employer contact links.'],
             messages: ['Inbox','Review recruiter messages and application updates.'],
         };
-        const HASH_TO_VIEW = { matches:'discover',saved:'discover',focus:'focus',applications:'applications',profile:'profile',career:'profile',schedule:'schedule',alerts:'alerts',messages:'messages' };
-        const VIEW_TO_HASH = { discover:'matches',focus:'focus',applications:'applications',profile:'profile',schedule:'schedule',alerts:'alerts',messages:'messages' };
+        const HASH_TO_VIEW = { matches:'discover',saved:'discover',focus:'focus',careerops:'careerops',applications:'applications',profile:'profile',career:'profile',schedule:'schedule',alerts:'alerts',messages:'messages' };
+        const VIEW_TO_HASH = { discover:'matches',focus:'focus',careerops:'careerops',applications:'applications',profile:'profile',schedule:'schedule',alerts:'alerts',messages:'messages' };
         const appShell = document.getElementById('appShell');
         const workspaceMenuToggle = document.getElementById('workspaceMenuToggle');
 
@@ -1234,7 +1248,7 @@
                             ${gaps.length ? `<div class="match-reasons preference-gaps">${gaps.map(gap => `<span class="match-reason">${escapeHtml(gap)}</span>`).join('')}</div>` : ''}
                             <div class="job-card-footer">
                                 <span class="source-tag">via ${escapeHtml(job.source || '')}${postedText ? ` · ${escapeHtml(postedText)}` : ''}</span>
-                                <span class="job-quick-actions"><button class="btn btn-ghost btn-small" data-save-job="${escapeHtml(job.id)}">${job.saved ? 'Saved' : 'Save'}</button><button class="btn btn-ghost btn-small" data-focus-job="${escapeHtml(job.id)}">Focus</button><button class="btn btn-ghost btn-small" data-hide-job="${escapeHtml(job.id)}">Hide</button><button class="btn btn-ghost btn-small" data-report-job="${escapeHtml(job.id)}">Report</button><button class="btn btn-primary btn-small" data-tailor-job="${escapeHtml(job.id)}">Tailor &amp; apply</button><a class="apply-link" href="${escapeHtml(job.applyUrl || '#')}" target="_blank" rel="noopener noreferrer">Direct${ICON_APPLY}</a></span>
+                                <span class="job-quick-actions"><button class="btn btn-ghost btn-small" data-save-job="${escapeHtml(job.id)}">${job.saved ? 'Saved' : 'Save'}</button><button class="btn btn-ghost btn-small" data-focus-job="${escapeHtml(job.id)}">Focus</button><button class="btn btn-ghost btn-small" data-hide-job="${escapeHtml(job.id)}">Hide</button><button class="btn btn-ghost btn-small" data-report-job="${escapeHtml(job.id)}">Report</button><button class="btn btn-ghost btn-small" data-co-evaluate="${escapeHtml(job.id)}">Evaluate</button><button class="btn btn-primary btn-small" data-tailor-job="${escapeHtml(job.id)}">Tailor &amp; apply</button><a class="apply-link" href="${escapeHtml(job.applyUrl || '#')}" target="_blank" rel="noopener noreferrer">Direct${ICON_APPLY}</a></span>
                             </div>
                         </div>
                     </div>
@@ -1268,5 +1282,6 @@
 
         refreshBtn.addEventListener('click', loadRecommendations);
     </script>
+    <script src="/careerops.js"></script>
 </body>
 </html>
