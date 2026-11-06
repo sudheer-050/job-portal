@@ -40,6 +40,7 @@
                 <input type="text" id="loginUsername" autocomplete="username" required>
                 <label for="loginPassword">Password</label>
                 <input type="password" id="loginPassword" autocomplete="current-password" required>
+                <div class="auth-link-row"><button type="button" class="link-btn" id="forgotLinkBtn">Forgot password?</button></div>
                 <div class="btn-row"><button type="submit" class="btn btn-primary full">Log in</button></div>
             </form>
 
@@ -53,7 +54,17 @@
                 <div class="btn-row"><button type="submit" class="btn btn-primary full">Create account</button></div>
             </form>
 
+            <form id="forgotForm" style="display:none;" novalidate>
+                <h2 class="auth-form-title">Reset your password</h2>
+                <p class="hint">Enter your username or the email on your account and we'll send you a link to choose a new password.</p>
+                <label for="forgotIdentifier">Username or email</label>
+                <input type="text" id="forgotIdentifier" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+                <div class="btn-row"><button type="submit" class="btn btn-primary full" id="forgotSubmitBtn">Send reset link</button></div>
+                <div class="auth-link-row center"><button type="button" class="link-btn" id="forgotBackBtn">Back to log in</button></div>
+            </form>
+
             <div class="error-msg" id="authError"></div>
+            <div class="success-msg" id="authSuccess" role="status"></div>
         </div>
     </div>
 
@@ -961,6 +972,7 @@
 
         refreshBtn.addEventListener('click', loadRecommendations);
     </script>
+    <script src="/jobs/forgot.js"></script>
     <script src="/jobs/careerops.js"></script>
 </body>
 </html>

@@ -6,6 +6,12 @@
 
 **Last reviewed:** 2026-11-06
 
+## Unreleased — Forgot password
+
+- Added a **Forgot password?** link to the log-in page with a secure email reset flow: single-use 30-minute tokens (only a hash is stored), identical responses for every input, per-IP and per-account limits, and a standalone `/jobs/reset` page that keeps the token in the URL fragment.
+- Added SMTP settings (`SMTP_*`, `PUBLIC_BASE_URL`) to the compose files and `.env.example`. Without SMTP no email is sent; `PASSWORD_RESET_LOG_LINKS=true` prints links to the server log for owner-assisted resets.
+- Added the `nodemailer` dependency and a `job_password_resets` table, created automatically.
+
 ## 3.3.0 — Career Ops, ATS optimiser, and light redesign
 
 - Added a Career Ops workspace: A–G job evaluation with a 1–5 score, posting-legitimacy and liveness checks, a fact-checked tailored resume and cover-letter draft, canonical pipeline states with follow-up cadence, and outcome insights. See [CAREER_OPS.md](CAREER_OPS.md).

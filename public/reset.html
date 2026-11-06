@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex">
+    <title>Reset password · Job Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/jobs/app.css">
+</head>
+<body>
+    <header><a href="/jobs" class="brand">Job<span class="tag">Portal</span></a></header>
+    <div id="authView">
+        <div class="auth-header">
+            <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+            <h1>Choose a new password</h1>
+            <p>Use at least 8 characters. This link works once.</p>
+        </div>
+        <div class="card">
+            <form id="resetForm" novalidate>
+                <label for="newPassword">New password</label>
+                <input type="password" id="newPassword" autocomplete="new-password" minlength="8" maxlength="128" required>
+                <label for="confirmPassword">Confirm new password</label>
+                <input type="password" id="confirmPassword" autocomplete="new-password" minlength="8" maxlength="128" required>
+                <div class="btn-row"><button type="submit" class="btn btn-primary full" id="resetBtn">Update password</button></div>
+            </form>
+            <div class="error-msg" id="resetError" role="alert"></div>
+            <div class="success-msg" id="resetDone" role="status">Your password has been updated. <a href="/jobs">Log in</a> with your new password.</div>
+            <p class="auth-footnote"><a href="/jobs">Back to log in</a></p>
+        </div>
+    </div>
+    <script src="/jobs/reset.js"></script>
+</body>
+</html>
