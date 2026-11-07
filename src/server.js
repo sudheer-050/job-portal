@@ -911,7 +911,7 @@ async function autoRewriteApplications(username) {
 
 app.post('/api/jobs/applications/:id/rewrite', requireAuth, asyncRoute(async (req, res) => {
     try {
-        res.json(await careerOps.rewriteApplication(req.jobUsername, Number(req.params.id), 'you asked for a rewrite'));
+        res.json(await careerOps.rewriteApplication(req.jobUsername, Number(req.params.id), 'you asked for a rewrite', { includeReady: true }));
     } catch (error) {
         if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
         throw error;

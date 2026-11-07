@@ -7,7 +7,7 @@ const { evaluateOffer } = require('./evaluate');
 const { checkLiveness } = require('./liveness');
 const { buildCoverLetter, renderHtml, renderMarkdown, tailorResume } = require('./resume');
 const { aiConfig, suggestRewrites } = require('./rewrite');
-const { optimizeForAts } = require('./ats');
+const { improvementDetails, optimizeForAts } = require('./ats');
 const { applyConfirmedSkills } = require('./confirm');
 const { mergeSkills } = require('../profile/sources');
 const { acceptBulkSkills, rememberedUsedFor, visibleGaps } = require('./remembered');
@@ -610,6 +610,26 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         );
         return result.rows;
     }
+
+    // What would raise this job's ATS score, in plain terms: where points are lost, which lines to change,
+    // and which skills would help if the person genuinely has them. Nothing here changes the resume.
+    app.get(`${BASE}/improve/:jobId`, requireAuth, asyncRoute(async (req, res) => {
+        const ctx = await context(req.jobUsername);
+        if (!ctx.resumeText) return res.status(400).json({ error: 'Upload your source resume first.' });
+        const job = await loadJob(req.params.jobId);
+        if (!job) return res.status(404).json({ error: 'That job is no longer available.' });
+        const best = (await optimizeForAts({ resumeText: ctx.resumeText, job, profile: ctx.profile, target: 100 })).best;
+        const missingSkills = best.ats.keywords.missing;
+        let ifAllConfirmed = best.ats.score;
+        if (missingSkills.length) {
+            const withAll = mergeSkills(ctx.profile.skills, missingSkills, 100000).skills;
+            ifAllConfirmed = (await optimizeForAts({ resumeText: ctx.resumeText, job, profile: { ...ctx.profile, skills: withAll }, target: 100 })).best.ats.score;
+        }
+        res.json({
+            jobId: job.id, title: job.title, score: best.ats.score, ceiling: best.ats.ceiling, ifAllConfirmed,
+            missingSkills, issues: best.ats.issues, ...improvementDetails({ ats: best.ats, tailored: best.built.tailored }),
+        });
+    }));
 
     app.get(`${BASE}/skill-gaps`, requireAuth, asyncRoute(async (req, res) => {
         const ctx = await context(req.jobUsername);
