@@ -126,6 +126,7 @@
             '<h4>Skills you evidence</h4>' + chips(b.B.present, 'ok') +
             '<h4>Mentioned only once</h4>' + chips(b.B.thin, 'warn') +
             '<h4>Not in your resume</h4>' + chips(b.B.missing, 'bad') +
+            (b.B.missing.length ? '<p class="cof-note">Do you actually have any of these? Say so and Career Ops will add them to your Skills and raise your ATS score. <button type="button" class="btn btn-ghost btn-small" data-co-evaluate="' + esc(data.jobId) + '" data-co-open="resume">I have some of these</button></p>' : '') +
             (reqs ? '<h4>Requirements</h4><ul class="cof-list">' + reqs + '</ul>' : '') +
             '<h4>Fit</h4><ul class="cof-list"><li>Level: job is <strong>' + esc(b.C.jdLevel) + '</strong>, you are <strong>' + esc(b.C.yourLevel) + '</strong> (' + esc(String(b.C.fit).replace('-', ' ')) + ').</li><li>Pay: ' + esc(b.D.summary) + '</li>' + (C.plan ? '<li>Approach: ' + esc(C.plan) + '</li>' : '') + '</ul>' + feature + honest + ask +
             (signals ? '<h4>Posting signals</h4><ul class="cof-list">' + signals + '</ul>' : '') +
