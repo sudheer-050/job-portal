@@ -347,6 +347,7 @@ function requireAuth(req, res, next) {
     }
 }
 
+const { renderDocument } = require('./documents/export');
 const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 
 async function hagentCli(argv) {
@@ -984,22 +985,34 @@ app.post('/api/jobs/applications/:id/applied', requireAuth, asyncRoute(async (re
     res.json({ application: result.rows[0] });
 }));
 
-app.get('/api/jobs/applications/:id/resume', requireAuth, asyncRoute(async (req, res) => {
+// Resume and cover letter downloads: ?format=pdf, docx or md (Markdown stays the default for older links).
+function sendDocument(res, { markdown, format, baseName }) {
+    const file = renderDocument({ markdown, format: format || 'md', baseName });
+    if (!file) return res.status(400).json({ error: 'Choose pdf, docx or md.' });
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.attachment(file.filename).type(file.contentType).send(file.buffer);
+}
+
+async function documentFor(req, column, versionColumn) {
     const result = await pool.query(
-        'SELECT tailored_resume,resume_version FROM job_applications WHERE id=$1 AND username=$2',
+        `SELECT a.${column} AS markdown, a.${versionColumn} AS version, p.title, p.company, j.full_name
+         FROM job_applications a JOIN job_postings p ON p.id=a.job_id LEFT JOIN job_profiles j ON j.username=a.username
+         WHERE a.id=$1 AND a.username=$2`,
         [req.params.id, req.jobUsername]
     );
-    if (!result.rows.length || !result.rows[0].tailored_resume) return res.status(404).json({ error: 'Tailored resume is not ready.' });
-    res.type('text/markdown').attachment(`tailored-resume-${req.params.id}-v${result.rows[0].resume_version}.md`).send(result.rows[0].tailored_resume);
+    return result.rows[0] || null;
+}
+
+app.get('/api/jobs/applications/:id/resume', requireAuth, asyncRoute(async (req, res) => {
+    const row = await documentFor(req, 'tailored_resume', 'resume_version');
+    if (!row || !row.markdown) return res.status(404).json({ error: 'Tailored resume is not ready.' });
+    sendDocument(res, { markdown: row.markdown, format: req.query.format, baseName: [row.full_name, 'Resume', row.company || row.title, `v${row.version}`].filter(Boolean).join(' - ') });
 }));
 
 app.get('/api/jobs/applications/:id/cover-letter', requireAuth, asyncRoute(async (req, res) => {
-    const result = await pool.query(
-        'SELECT cover_letter,cover_letter_version FROM job_applications WHERE id=$1 AND username=$2',
-        [req.params.id, req.jobUsername]
-    );
-    if (!result.rows.length || !result.rows[0].cover_letter) return res.status(404).json({ error: 'Cover letter is not ready.' });
-    res.type('text/markdown').attachment(`cover-letter-${req.params.id}-v${result.rows[0].cover_letter_version}.md`).send(result.rows[0].cover_letter);
+    const row = await documentFor(req, 'cover_letter', 'cover_letter_version');
+    if (!row || !row.markdown) return res.status(404).json({ error: 'Cover letter is not ready.' });
+    sendDocument(res, { markdown: row.markdown, format: req.query.format, baseName: [row.full_name, 'Cover letter', row.company || row.title, `v${row.version}`].filter(Boolean).join(' - ') });
 }));
 
 app.get('/api/jobs/messages', requireAuth, asyncRoute(async (req, res) => {

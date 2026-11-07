@@ -8,6 +8,7 @@ const { checkLiveness } = require('./liveness');
 const { buildCoverLetter, renderHtml, renderMarkdown, tailorResume } = require('./resume');
 const { aiConfig, suggestRewrites } = require('./rewrite');
 const { improvementDetails, optimizeForAts } = require('./ats');
+const { renderDocument } = require('../documents/export');
 const { applyConfirmedSkills } = require('./confirm');
 const { mergeSkills } = require('../profile/sources');
 const { acceptBulkSkills, rememberedUsedFor, visibleGaps } = require('./remembered');
@@ -280,6 +281,20 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         const result = await pool.query('DELETE FROM job_confirmed_skills WHERE username=$1 AND skill_key=$2', [req.jobUsername, key]);
         if (!result.rowCount) return res.status(404).json({ error: 'That skill is not in your confirmed list.' });
         res.json({ removed: key });
+    }));
+
+    // Turn the resume or cover letter on screen into a PDF, a Word file or Markdown.
+    app.post(`${BASE}/export`, requireAuth, scanLimiter, asyncRoute(async (req, res) => {
+        const markdown = String(req.body?.markdown || '');
+        if (!markdown.trim()) return res.status(400).json({ error: 'There is nothing to download yet.' });
+        if (markdown.length > 200000) return res.status(413).json({ error: 'That document is too large to export.' });
+        const kind = req.body?.kind === 'cover' ? 'Cover letter' : 'Resume';
+        const named = await pool.query('SELECT full_name FROM job_profiles WHERE username=$1', [req.jobUsername]);
+        const who = String(named.rows[0]?.full_name || '').trim() || (markdown.match(/^#\s+(.+)$/m) || [])[1] || '';
+        const file = renderDocument({ markdown, format: req.body?.format, baseName: [who, kind, String(req.body?.company || req.body?.title || '').slice(0, 60)].filter(Boolean).join(' - ') });
+        if (!file) return res.status(400).json({ error: 'Choose pdf, docx or md.' });
+        res.set('X-Content-Type-Options', 'nosniff');
+        res.attachment(file.filename).type(file.contentType).send(file.buffer);
     }));
 
     app.get(`${BASE}/ai`, requireAuth, (_req, res) => {
