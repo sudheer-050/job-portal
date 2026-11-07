@@ -841,9 +841,18 @@
                 </div>`).join('');
         }
 
+        let applicationsRefresh = null;
         async function loadApplications() {
-            try { renderApplications((await api('/api/jobs/applications')).applications); }
-            catch (err) { applicationsContainer.innerHTML = `<span class="source-status">${escapeHtml(err.message)}</span>`; }
+            clearTimeout(applicationsRefresh);
+            if (!lastApplications.length) applicationsContainer.innerHTML = '<span class="source-status">Loading your applications…</span>';
+            try {
+                const data = await api('/api/jobs/applications');
+                renderApplications(data.applications);
+                // Hagent is still preparing something: check again shortly, and refresh the dashboard counts.
+                if (data.working) applicationsRefresh = setTimeout(() => { loadApplications(); loadDashboard(); }, 15000);
+            } catch (err) {
+                applicationsContainer.innerHTML = `<span class="source-status">Could not load your applications: ${escapeHtml(err.message)} <button type="button" class="link-btn" data-app-retry>Try again</button></span>`;
+            }
         }
 
         document.querySelectorAll('[data-application-tab]').forEach(button => button.addEventListener('click', () => {
@@ -854,6 +863,7 @@
         }));
 
         applicationsContainer.addEventListener('click', async event => {
+            if (event.target.closest('[data-app-retry]')) { loadApplications(); return; }
             if (event.target.closest('[data-app-filter-clear]')) { applicationFilter = 'all'; renderApplications(lastApplications); return; }
             const submitButton = event.target.closest('[data-submit-application]');
             const appliedButton = event.target.closest('[data-mark-applied]');

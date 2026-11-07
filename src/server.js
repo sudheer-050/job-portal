@@ -856,21 +856,28 @@ app.post('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
     res.status(202).json({ application: result.rows[0] });
 }));
 
-app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
-    await careerOps?.schemaReady; // the result query joins job_evaluations
-    let rows = (await pool.query(
+// Progress of applications Hagent is still working on is checked in the background. The list used to wait
+// for every Hagent call (up to six minutes each), which left the Applications view blank.
+const applicationsBeingSynced = new Set();
+async function syncPendingApplications(username) {
+    const pending = (await pool.query(
         `SELECT a.*,p.title,p.company,p.location,p.apply_url,p.source,p.description,r.resume_text
          FROM job_applications a JOIN job_postings p ON p.id=a.job_id
          LEFT JOIN resumes r ON r.username=a.username
-         WHERE a.username=$1 ORDER BY a.updated_at DESC`, [req.jobUsername]
-    )).rows;
-    for (const row of rows.filter(item => ['tailoring', 'verifying'].includes(item.status))) {
+         WHERE a.username=$1 AND a.status IN ('tailoring','verifying') ORDER BY a.updated_at DESC`, [username]
+    )).rows.filter(row => !applicationsBeingSynced.has(row.id));
+    pending.forEach(row => applicationsBeingSynced.add(row.id));
+    for (const row of pending) {
         try { await syncApplication(row); }
         catch (error) {
-            await pool.query("UPDATE job_applications SET status='needs_review',error=$2,updated_at=now() WHERE id=$1", [row.id, error.message]);
-        }
+            await pool.query("UPDATE job_applications SET status='needs_review',error=$2,updated_at=now() WHERE id=$1", [row.id, error.message]).catch(() => {});
+        } finally { applicationsBeingSynced.delete(row.id); }
     }
-    rows = (await pool.query(
+}
+
+app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
+    await careerOps?.schemaReady; // the result query joins job_evaluations
+    const rows = (await pool.query(
         `SELECT a.id,a.job_id,a.status,a.tailored_resume,a.cover_letter,a.resume_version,a.cover_letter_version,a.quality_score,a.quality_verdict,
                 a.quality_notes,a.requires_login,a.submission_mode,a.submission_provider,a.confirmation_reference,
                 a.error,a.created_at,a.updated_at,a.applied_at,
@@ -881,7 +888,9 @@ app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
          LEFT JOIN job_evaluations e ON e.username=a.username AND e.job_id=a.job_id
          WHERE a.username=$1 ORDER BY a.updated_at DESC`, [req.jobUsername]
     )).rows;
-    res.json({ applications: rows });
+    const working = rows.some(row => ['tailoring', 'verifying'].includes(row.status));
+    if (working) syncPendingApplications(req.jobUsername).catch(error => console.error('application sync failed:', error.message));
+    res.json({ applications: rows, working });
 }));
 
 app.post('/api/jobs/applications/:id/submit', requireAuth, asyncRoute(async (req, res) => {
