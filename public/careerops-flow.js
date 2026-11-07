@@ -8,7 +8,7 @@
     if (!recs || !recs.parentNode) return;
 
     var STORE_KEY = 'jp-careerops-flow';
-    var prefs = { auto: true, sort: 'match', hide: false };
+    var prefs = { auto: true, sort: 'match', hide: false, hideApplied: true, newOnly: false };
     try { prefs = Object.assign(prefs, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch (_) { /* storage unavailable */ }
     function savePrefs() { try { localStorage.setItem(STORE_KEY, JSON.stringify(prefs)); } catch (_) { /* ignore */ } }
 
@@ -47,6 +47,8 @@
         '<label class="cof-check"><input type="checkbox" id="cofAuto"> Auto-scan</label>' +
         '<label class="cof-check cof-select">Sort <select id="cofSort" aria-label="Sort matches"><option value="match">Best match %</option><option value="co">Career Ops score</option></select></label>' +
         '<label class="cof-check"><input type="checkbox" id="cofHide"> Hide below 4.0 &amp; suspicious</label>' +
+        '<label class="cof-check"><input type="checkbox" id="cofHideApplied"> Hide applied</label>' +
+        '<label class="cof-check"><input type="checkbox" id="cofNewOnly"> New only</label>' +
         '<button type="button" class="btn btn-ghost btn-small" id="cofScan">Scan matches</button>' +
         '</div>';
     recs.parentNode.insertBefore(bar, recs);
@@ -59,6 +61,10 @@
     autoEl.checked = !!prefs.auto;
     sortEl.value = prefs.sort === 'co' ? 'co' : 'match';
     hideEl.checked = !!prefs.hide;
+    var hideAppliedEl = document.getElementById('cofHideApplied');
+    var newOnlyEl = document.getElementById('cofNewOnly');
+    hideAppliedEl.checked = !!prefs.hideApplied;
+    newOnlyEl.checked = !!prefs.newOnly;
 
     function setStatus(text) { lastStatus = text; statusEl.textContent = text; }
 
@@ -162,7 +168,9 @@
             ordered.forEach(function (card) { list.appendChild(card); });
             ordered.forEach(function (card) {
                 var s = cache[cardId(card)];
-                var hide = !!(prefs.hide && s && flagged(s));
+                var hide = !!(prefs.hide && s && flagged(s)) ||
+                    !!(prefs.hideApplied && card.dataset.appStatus === 'applied') ||
+                    !!(prefs.newOnly && card.dataset.isNew !== '1');
                 card.hidden = hide;
                 if (hide) hidden += 1;
             });
@@ -215,6 +223,8 @@
 
     autoEl.addEventListener('change', function () { prefs.auto = autoEl.checked; savePrefs(); if (prefs.auto) scan(false); });
     sortEl.addEventListener('change', function () { prefs.sort = sortEl.value; savePrefs(); apply(); });
+    hideAppliedEl.addEventListener('change', function () { prefs.hideApplied = hideAppliedEl.checked; savePrefs(); apply(); setStatus(summaryText()); });
+    newOnlyEl.addEventListener('change', function () { prefs.newOnly = newOnlyEl.checked; savePrefs(); apply(); setStatus(summaryText()); });
     hideEl.addEventListener('change', function () { prefs.hide = hideEl.checked; savePrefs(); apply(); setStatus(summaryText()); });
     scanBtn.addEventListener('click', function () { scan(true); });
 
