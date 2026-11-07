@@ -21,6 +21,7 @@
             </div>
         </div>
     </header>
+    <div class="update-banner" id="updateBanner" role="status" aria-live="polite" hidden><span>A newer version of the portal is available.</span><button type="button" class="btn btn-primary btn-small" id="updateReload">Reload now</button></div>
 
     <!-- LOGGED OUT -->
     <div id="authView">
@@ -913,6 +914,22 @@
                     ${item.confirmation_reference ? `<div class="source-status">Confirmation: ${escapeHtml(item.confirmation_reference)}</div>` : ''}
                 </div>`).join('');
         }
+
+        // An open tab does not get new code by itself, so ask the server which build is current.
+        (() => {
+            const meta = document.querySelector('meta[name="build"]');
+            if (!meta) return;
+            const check = async () => {
+                try {
+                    const data = await (await fetch('/api/jobs/version', { cache: 'no-store' })).json();
+                    if (data.build && data.build !== meta.content) document.getElementById('updateBanner').hidden = false;
+                } catch (_) { /* offline: try again later */ }
+            };
+            document.getElementById('updateReload').addEventListener('click', () => location.reload());
+            document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+            setInterval(check, 60000);
+            window.checkPortalVersion = check;
+        })();
 
         // Called after skills are added anywhere: bring every number on screen up to date.
         window.portalRefresh = () => {

@@ -27,12 +27,18 @@ const SUBMISSION_RUNNER_TOKEN = process.env.SUBMISSION_RUNNER_TOKEN || '';
 if (!JWT_SECRET) throw new Error('JWT_SECRET is required in production.');
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
 
+const { createPageSender } = require('./pages');
+// A new id on every start, so the first request after a deploy already carries fresh script and stylesheet links.
+const BUILD_ID = `${require('../package.json').version}-${Date.now().toString(36)}`;
+const sendPage = createPageSender({ publicDir: path.join(__dirname, '..', 'public'), build: BUILD_ID });
+
 const app = express();
+app.locals.sendPage = sendPage;
 app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
 app.use(require('./canonical-https'));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, '..', 'public'), { index: 'index.html' }));
+app.use(express.static(path.join(__dirname, '..', 'public'), { index: false }));
 // Production routes only /jobs* and /api/jobs/* to this service, so the pages load their
 // stylesheets and scripts from /jobs/. Never reference assets from the site root.
 app.use('/jobs', express.static(path.join(__dirname, '..', 'public'), { index: false, redirect: false }));
@@ -573,11 +579,16 @@ app.get('/api/jobs/meta', (_req, res) => res.json({
 }));
 
 app.get(['/updates', '/updates/', '/jobs/updates', '/jobs/updates/'], (_req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'public', 'updates.html'));
+    sendPage(res, 'updates.html');
 });
 
-app.get(['/jobs', '/jobs/'], (_req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+// Open tabs ask this to find out whether a newer version has been deployed.
+app.get('/api/jobs/version', (_req, res) => {
+    res.set('Cache-Control', 'no-store').json({ build: BUILD_ID });
+});
+
+app.get(['/', '/jobs', '/jobs/'], (_req, res) => {
+    sendPage(res, 'index.html');
 });
 
 app.post('/api/jobs/auth/signup', authLimiter, async (req, res) => {

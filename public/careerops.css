@@ -196,3 +196,7 @@ details.download-menu[open] > summary { border-color: var(--accent-brand); }
 .download-options { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 190px; display: grid; padding: 4px; background: #fff; border: 1px solid var(--border-color-soft); border-radius: var(--radius-md); box-shadow: var(--shadow-md); }
 .download-options a, .download-options button { display: block; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-normal); font: 500 13.5px var(--font-stack); text-align: left; text-decoration: none; cursor: pointer; }
 .download-options a:hover, .download-options button:hover, .download-options a:focus-visible, .download-options button:focus-visible { background: var(--bg-subtle); outline: none; }
+
+/* ---- A newer version has been deployed ---- */
+.update-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; padding: 10px 16px; font-size: 14px; font-weight: 500; color: var(--text-normal); background: var(--accent-brand-soft); border-bottom: 1px solid var(--border-color-soft); }
+.update-banner[hidden] { display: none; }
