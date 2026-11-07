@@ -167,3 +167,5 @@
 /* ---- Missing skills on an application row ---- */
 .missing-skills { display: grid; gap: 8px; margin: 8px 0; padding: 10px 12px; font-size: 13px; background: var(--bg-card-hover); border: 1px solid var(--border-color-soft); border-radius: var(--radius-md); }
 .missing-skills-list { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.tab-count { font-weight: 600; opacity: .75; }

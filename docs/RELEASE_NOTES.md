@@ -24,6 +24,10 @@
 
 - **Pick missing skills right on the row:** each application below 95% CV match now lists its missing skills with tick boxes directly under the Career Ops score, with **Add ticked skills to my resume** beside them; the CV match updates in place. The Discover check panel shows the same list open by default (it can still be collapsed). The Career Ops tab, when opened for a job, builds the resume straight away so its question is on screen.
 
+## Unreleased — Separate application tabs
+
+- **Applications now has four tabs:** **Preparing**, **Ready to submit**, **Needs you** and **Applied**, each with a count. They replace the combined "Preparing / ready" tab, so what is waiting for you is no longer mixed with what is still being prepared. The dashboard tiles open the matching tab, and the old "Showing only" filter line is gone.
+
 ## 3.5.0 — Inline apply check and a compact dashboard
 
 Released 2026-11-06.
