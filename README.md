@@ -39,6 +39,16 @@ For genuine unattended submission, configure the external submission runner and 
 
 The **Career Ops** workspace scores any posting A–G on a 1–5 scale (and recommends against anything under 4.0), checks that the posting is real and still open, builds a fact-checked tailored resume and cover-letter draft from your own resume, and keeps your follow-ups and outcome patterns on track. Nothing is invented and nothing is submitted for you. See [docs/CAREER_OPS.md](docs/CAREER_OPS.md).
 
+## Keep your profile up to date
+
+In **Profile & resume → Keep your profile up to date**, the portal can read the places your work is already published and suggest what is missing from your resume:
+
+- **GitHub:** your public repositories that you own (forks and other people's repositories are ignored) become project suggestions, and a language used in two or more of them becomes a skill suggestion.
+- **Portfolio website:** the public page you set under Application identity is read for projects and roles under headings such as "Projects" or "Experience". Sites that only render in JavaScript may show little.
+- **LinkedIn:** LinkedIn blocks automatic reading and forbids scraping, so use its own export: Settings & privacy → Data privacy → **Get a copy of your data**, then choose Positions, Education, Skills, Certifications and Projects and upload the CSV files.
+
+Nothing is added without your approval: suggestions wait in a review list, you tick what is yours, and only then are they written into your resume (a new version) and skills. Dismissed items never come back. The portal checks GitHub and your portfolio about once a week and tells you if something new is found; you can switch that off. Set `GITHUB_TOKEN` (optional) to raise GitHub's rate limit.
+
 ## Forgot password
 
 The log-in card has a **Forgot password?** link. It emails a single-use link (valid 30 minutes) to the address on the account; the link opens a reset page at `/jobs/reset`. The server answers every request identically, so it never reveals whether a username or email has an account, stores only a hash of each token, limits requests per IP and per account, and keeps the token in the URL fragment so it never reaches a server log.

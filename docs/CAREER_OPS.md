@@ -37,6 +37,10 @@ Scanning is deterministic and uses only your own resume and profile, so it is fa
 - **Applications prepared by Career Ops:** when Hagent is not configured, **Tailor & apply** no longer fails. Career Ops prepares the application: a fact-checked, ATS-optimised resume, a cover letter, and the evaluation. It waits as *ready to submit* for **you** to review and apply on the employer's site. It is never sent automatically. When Hagent is configured, nothing changes and Career Ops adds its evaluation alongside.
 - **Apply & track (the separate tab):** to apply to one job from start to finish, open Career Ops and follow **1. Evaluate → 2. Resume & cover letter → 3. Apply & track**. Step 3 checks the fit (a weak or suspicious job is stopped with the reason, and you can still start it), starts the application, links your documents and the employer page, and tracks it with **I applied**, after which a follow-up reminder appears in a week. Pasted jobs need the https link to the posting.
 
+### Keeping your resume current
+
+Career Ops reads your resume, so it is only as good as what the resume says. **Profile & resume → Keep your profile up to date** suggests additions from GitHub, your portfolio site and your LinkedIn data export. Approved items are written into the resume text (a new version), so the fact check, ATS score and matching all use them from the next scan. In a test, approving two skills and one imported job lifted a job's CV coverage from 50% to 64% and its score from 4.1 to 4.3.
+
 ## Using it
 
 1. Upload your resume and complete your profile (years of experience, salary range, skills, sponsorship).

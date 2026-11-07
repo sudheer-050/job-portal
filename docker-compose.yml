@@ -55,6 +55,7 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
       PASSWORD_RESET_LOG_LINKS: ${PASSWORD_RESET_LOG_LINKS:-false}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy

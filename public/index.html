@@ -71,12 +71,14 @@
     <!-- LOGGED IN -->
     <div id="appView" style="display:none;">
         <section class="summary-grid" aria-label="Career dashboard">
-            <div class="summary-card"><strong id="statSaved">0</strong><span>Saved</span></div>
-            <div class="summary-card"><strong id="statActive">0</strong><span>In progress</span></div>
-            <div class="summary-card"><strong id="statApplied">0</strong><span>Applied</span></div>
-            <div class="summary-card"><strong id="statInterviews">0</strong><span>Interviews</span></div>
-            <div class="summary-card"><strong id="statUnread">0</strong><span>Unread</span></div>
-            <div class="summary-card"><strong id="statOffers">0</strong><span>Offers</span></div>
+            <a class="summary-card" href="#matches" title="Jobs Career Ops scored 4.0 or higher that you have not started"><strong id="statStrong">0</strong><span>Strong matches</span></a>
+            <a class="summary-card" href="#saved" title="Jobs you saved"><strong id="statSaved">0</strong><span>Saved</span></a>
+            <a class="summary-card" href="#applications" title="Applications being prepared"><strong id="statActive">0</strong><span>In progress</span></a>
+            <a class="summary-card" href="#applications" title="Applications you have sent"><strong id="statApplied">0</strong><span>Applied</span></a>
+            <a class="summary-card" href="#careerops" title="Follow-ups that are due or overdue"><strong id="statFollowups">0</strong><span>Follow-ups due</span></a>
+            <a class="summary-card" href="#schedule" title="Upcoming interviews"><strong id="statInterviews">0</strong><span>Interviews</span></a>
+            <a class="summary-card" href="#schedule" title="Offers you are considering"><strong id="statOffers">0</strong><span>Offers</span></a>
+            <a class="summary-card" href="#messages" title="Unread messages"><strong id="statUnread">0</strong><span>Unread</span></a>
         </section>
 
         <div class="app-shell" id="appShell">
@@ -210,6 +212,11 @@
                         <h2>Focused jobs &amp; interview roadmap</h2><p class="hint">Prioritize the roles that matter, schedule recruiter follow-ups, and train against a practical interview-readiness checklist.</p>
                         <div class="mini-list" id="focusedJobsList"><span class="source-status">Choose Focus on a saved job or recommendation.</span></div>
                         <div class="mini-list" id="interviewPrepList"></div>
+                    </article>
+                    <article class="feature-card wide" id="sources" data-workspace-view="profile">
+                        <h2>Keep your profile up to date</h2>
+                        <p class="hint">Career Ops can look at your public GitHub, your portfolio site and your LinkedIn data export for projects, experience and skills. It only suggests: nothing reaches your resume until you approve it.</p>
+                        <div id="srcPanel"><span class="source-status">Loading…</span></div>
                     </article>
                     <article class="feature-card wide" id="career" data-workspace-view="profile">
                         <h2>Career profile &amp; answer library</h2><p class="hint">Structured facts improve matching. Only answers you explicitly approve are eligible for auto-apply.</p>
@@ -641,7 +648,7 @@
         async function loadDashboard() {
             try {
                 const summary = (await api('/api/jobs/dashboard')).summary || {};
-                ['Saved','Active','Applied','Interviews','Unread','Offers'].forEach(name => {
+                ['Strong','Saved','Active','Applied','Followups','Interviews','Offers','Unread'].forEach(name => {
                     document.getElementById(`stat${name}`).textContent = Number(summary[name.toLowerCase()] || 0).toLocaleString();
                 });
             } catch (_) {}
@@ -979,5 +986,6 @@
     <script src="/jobs/forgot.js"></script>
     <script src="/jobs/careerops.js"></script>
     <script src="/jobs/careerops-flow.js"></script>
+    <script src="/jobs/sources.js"></script>
 </body>
 </html>
