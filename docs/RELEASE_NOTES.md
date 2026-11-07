@@ -6,8 +6,10 @@
 
 **Last reviewed:** 2026-11-06
 
-## Unreleased — Larger dashboard strip and full-height sidebar
+## Unreleased — Larger dashboard strip, full-height sidebar, clearer application steps
 
+- **In progress split in two:** the dashboard now shows **Ready to submit** (prepared, waiting for you to send it) and **Needs you** (login, CAPTCHA, an answer or a review). The strip has six tiles.
+- **Mark applied:** every application that is ready to submit or needs you has a **Mark applied** button for when you have submitted on the employer's site; the tiles update immediately. **Submit now** only appears when automatic submission is actually configured. Ready applications say what to do next.
 - **Layout:** the KPI strip moved to the right, above the main content, and the sidebar now runs the full height of the window from the header down, instead of starting below the strip. On narrow screens the sidebar stacks above the strip as before.
 - **Dashboard tiles:** the five tiles are larger (bigger numbers and labels, taller) and are now one bar split into five equal sections with thin dividers, running edge to edge across the content area. Still one row at every width; below about 1,000px the bar scrolls sideways.
 

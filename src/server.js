@@ -980,6 +980,8 @@ app.get('/api/jobs/dashboard', requireAuth, asyncRoute(async (req, res) => {
         `SELECT
           (SELECT count(*)::int FROM job_saved_jobs WHERE username=$1) AS saved,
           (SELECT count(*)::int FROM job_applications WHERE username=$1 AND status <> 'applied') AS active,
+          (SELECT count(*)::int FROM job_applications WHERE username=$1 AND status = 'ready_to_submit') AS ready,
+          (SELECT count(*)::int FROM job_applications WHERE username=$1 AND status IN ('action_required','needs_review')) AS needs,
           (SELECT count(*)::int FROM job_applications WHERE username=$1 AND status = 'applied') AS applied,
           (SELECT count(*)::int FROM job_interviews WHERE username=$1 AND status='scheduled' AND scheduled_at >= now()) AS interviews,
           (SELECT count(*)::int FROM job_messages WHERE username=$1 AND read_at IS NULL) AS unread,
