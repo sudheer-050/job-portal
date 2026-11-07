@@ -876,6 +876,48 @@ async function syncPendingApplications(username) {
     }
 }
 
+// Applications Hagent could not finish, or whose review failed, are rewritten by Career Ops without anyone asking.
+// Career Ops never submits anything: the result lands in "Ready to submit" for the person to review.
+const REWRITE_AFTER_MINUTES = 30;
+const REWRITE_FAILED = 'Automatic rewrite failed';
+const applicationsBeingRewritten = new Set();
+const needsRewrite = row => (row.status === 'needs_review' && !String(row.error || '').startsWith(REWRITE_FAILED))
+    || (['tailoring', 'verifying'].includes(row.status) && Date.now() - new Date(row.updated_at).getTime() > REWRITE_AFTER_MINUTES * 60000 && !String(row.error || '').startsWith(REWRITE_FAILED));
+
+async function autoRewriteApplications(username) {
+    if (!careerOps) return;
+    const rows = (await pool.query(
+        `SELECT id,status,error,updated_at,quality_score FROM job_applications
+         WHERE username=$1 AND status IN ('needs_review','tailoring','verifying') ORDER BY updated_at LIMIT 60`, [username]
+    )).rows.filter(row => needsRewrite(row) && !applicationsBeingRewritten.has(row.id) && !applicationsBeingSynced.has(row.id));
+    let rewritten = 0;
+    for (const row of rows) {
+        applicationsBeingRewritten.add(row.id);
+        try {
+            const reason = row.status === 'needs_review'
+                ? `Hagent's review${row.quality_score != null ? ` scored it ${row.quality_score}/100 and` : ''} asked for changes`
+                : 'Hagent had not finished it';
+            await careerOps.rewriteApplication(username, row.id, reason);
+            rewritten += 1;
+        } catch (error) {
+            await pool.query('UPDATE job_applications SET error=$2 WHERE id=$1 AND username=$3', [row.id, `${REWRITE_FAILED}: ${error.message}`.slice(0, 500), username]).catch(() => {});
+        } finally { applicationsBeingRewritten.delete(row.id); }
+    }
+    if (rewritten) {
+        await notifyUser(username, 'applications_rewritten', `Career Ops rewrote ${rewritten} application${rewritten === 1 ? '' : 's'}`,
+            'They were stuck or needed changes, so fact-checked drafts were prepared. Find them under Ready to submit, review them, then apply.', '/jobs#applications').catch(() => {});
+    }
+}
+
+app.post('/api/jobs/applications/:id/rewrite', requireAuth, asyncRoute(async (req, res) => {
+    try {
+        res.json(await careerOps.rewriteApplication(req.jobUsername, Number(req.params.id), 'you asked for a rewrite'));
+    } catch (error) {
+        if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
+        throw error;
+    }
+}));
+
 app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
     await careerOps?.schemaReady; // the result query joins job_evaluations
     const rows = (await pool.query(
@@ -889,9 +931,11 @@ app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
          LEFT JOIN job_evaluations e ON e.username=a.username AND e.job_id=a.job_id
          WHERE a.username=$1 ORDER BY a.updated_at DESC`, [req.jobUsername]
     )).rows;
-    const working = rows.some(row => ['tailoring', 'verifying'].includes(row.status));
-    if (working) syncPendingApplications(req.jobUsername).catch(error => console.error('application sync failed:', error.message));
-    res.json({ applications: rows, working });
+    const syncing = rows.some(row => ['tailoring', 'verifying'].includes(row.status));
+    if (syncing) syncPendingApplications(req.jobUsername).catch(error => console.error('application sync failed:', error.message));
+    const rewriting = rows.some(needsRewrite);
+    if (rewriting) autoRewriteApplications(req.jobUsername).catch(error => console.error('application rewrite failed:', error.message));
+    res.json({ applications: rows, working: syncing || rewriting });
 }));
 
 app.post('/api/jobs/applications/:id/submit', requireAuth, asyncRoute(async (req, res) => {

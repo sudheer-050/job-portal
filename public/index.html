@@ -849,12 +849,14 @@
                     ${item.error ? `<div class="error-msg" style="display:block">${escapeHtml(item.error)}</div>` : ''}
                     ${item.status === 'ready_to_submit' ? '<div class="source-status">Ready: open the employer page, submit with the prepared resume and cover letter, then press <strong>Mark applied</strong>.</div>' : ''}
                     ${item.requires_login ? '<div class="source-status">Your login is required on the employer portal.</div>' : ''}
+                    ${(() => { try { const notes = JSON.parse(item.quality_notes || '{}'); return notes.rewrittenFrom ? `<div class="source-status">Rewritten automatically by Career Ops because ${escapeHtml(notes.rewrittenFrom.reason || 'it needed changes')}. The new resume passed the fact check; review it before you apply.</div>` : ''; } catch (_) { return ''; } })()}
                     ${String(item.quality_notes || '').startsWith('{"source":"career-ops"') ? '<div class="source-status">Prepared by Career Ops: resume and cover letter are drafts for you to review. Nothing is sent until you apply on the employer\x27s site.</div>' : ''}
                     <div class="application-actions">
                         ${item.coHasResume ? `<a class="btn btn-ghost" href="/api/jobs/careerops/resume/${encodeURIComponent(item.job_id)}/html" target="_blank" rel="noopener">Print-ready resume</a>` : ''}
                         ${item.tailored_resume ? `<a class="btn btn-ghost" href="/api/jobs/applications/${item.id}/resume">Resume v${item.resume_version || 1}</a>` : ''}
                         ${item.cover_letter ? `<a class="btn btn-ghost" href="/api/jobs/applications/${item.id}/cover-letter">Cover letter v${item.cover_letter_version || 1}</a>` : ''}
                         <a class="btn btn-ghost" href="${escapeHtml(item.applyUrl)}" target="_blank" rel="noopener noreferrer">Open application / track</a>
+                        ${item.status === 'needs_review' ? `<button type="button" class="btn btn-ghost" data-app-rewrite="${item.id}" title="Replace this draft with a fact-checked Career Ops one">Rewrite with Career Ops</button>` : ''}
                         ${item.status === 'ready_to_submit' || item.status === 'action_required' ? `<button class="btn btn-primary" data-mark-applied="${item.id}" title="Use this after you have submitted the application on the employer's site">Mark applied</button>` : ''}
                         ${item.status === 'ready_to_submit' && autoApplyReady ? `<button class="btn btn-ghost" data-submit-application="${item.id}">Submit now</button>` : ''}
                     </div>
@@ -883,6 +885,16 @@
         }));
 
         applicationsContainer.addEventListener('click', async event => {
+            const rewrite = event.target.closest('[data-app-rewrite]');
+            if (rewrite) {
+                rewrite.disabled = true;
+                rewrite.textContent = 'Rewriting…';
+                try { await api(`/api/jobs/applications/${rewrite.dataset.appRewrite}/rewrite`, { method: 'POST' }); }
+                catch (err) { alert(err.message); }
+                await loadApplications();
+                loadDashboard();
+                return;
+            }
             const addSkills = event.target.closest('[data-app-addskills]');
             if (addSkills) {
                 const jobId = addSkills.dataset.appAddskills;
