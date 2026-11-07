@@ -931,11 +931,17 @@ app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
          LEFT JOIN job_evaluations e ON e.username=a.username AND e.job_id=a.job_id
          WHERE a.username=$1 ORDER BY a.updated_at DESC`, [req.jobUsername]
     )).rows;
+    // What is being worked on right now, so the page never presents unfinished scores as final.
+    const processingOf = row => !['needs_review', 'tailoring', 'verifying'].includes(row.status) ? null
+        : (applicationsBeingRewritten.has(row.id) || needsRewrite(row)) ? 'rewriting'
+        : row.status === 'tailoring' || applicationsBeingSynced.has(row.id) ? 'preparing' : row.status === 'verifying' ? 'reviewing' : null;
+    const withProcessing = rows.map(row => ({ ...row, processing: processingOf(row) }));
+    const scoring = !!careerOps?.isScoring(req.jobUsername);
     const syncing = rows.some(row => ['tailoring', 'verifying'].includes(row.status));
     if (syncing) syncPendingApplications(req.jobUsername).catch(error => console.error('application sync failed:', error.message));
     const rewriting = rows.some(needsRewrite);
     if (rewriting) autoRewriteApplications(req.jobUsername).catch(error => console.error('application rewrite failed:', error.message));
-    res.json({ applications: rows, working: syncing || rewriting });
+    res.json({ applications: withProcessing, working: syncing || rewriting || scoring, scoring });
 }));
 
 app.post('/api/jobs/applications/:id/submit', requireAuth, asyncRoute(async (req, res) => {

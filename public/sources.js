@@ -107,9 +107,10 @@
         if (state.busy) return;
         state.busy = true; state.error = ''; state.message = '';
         var original = button.textContent; button.disabled = true; button.textContent = label;
+        if (/Re-scoring|Refreshing/.test(label) && window.portalBusy) window.portalBusy('Updating every score and rebuilding your drafts. Scores may change until this message goes away.');
         task().then(function (note) { state.message = note || ''; return load(); })
             .catch(function (error) { state.error = error.message; render(); })
-            .then(function () { state.busy = false; });
+            .then(function () { state.busy = false; if (window.portalIdle) window.portalIdle(); });
     }
 
     function selected() {

@@ -176,6 +176,7 @@
         if (!ticked.length) { askMsg[id] = 'Tick at least one skill you genuinely have.'; decorate(); return; }
         button.disabled = true;
         button.textContent = 'Adding…';
+        if (window.portalBusy) window.portalBusy('Adding your skills and updating every score. Scores may change until this message goes away.');
         call(API + '/resume', { method: 'POST', body: { jobId: id, targetScore: 90, confirmedSkills: ticked } }).then(function (built) {
             askMsg[id] = 'Added ' + ticked.join(', ') + '. CV match is now ' + built.coverage + '% and the ATS score is ' + built.ats.score + '/100.' + ' Remembered, so any later job that asks for them uses them automatically.';
             Object.keys(cache).forEach(function (key) { delete cache[key]; }); // remembered skills change every job's match
@@ -183,7 +184,7 @@
             return ensureSummary(id).then(function () { return call(API + '/evaluations/' + encodeURIComponent(id)); }).then(function (data) { analysis[id] = data; });
         }).catch(function (error) {
             askMsg[id] = 'Could not add those skills: ' + error.message;
-        }).then(function () { refreshView(); scan(false); if (window.portalRefresh) window.portalRefresh(); });
+        }).then(function () { refreshView(); scan(false); if (window.portalIdle) window.portalIdle(); if (window.portalRefresh) window.portalRefresh(); });
     }
 
     recs.addEventListener('click', function (event) {

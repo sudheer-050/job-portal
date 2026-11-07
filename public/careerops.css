@@ -171,3 +171,12 @@
 .tab-count { font-weight: 600; opacity: .75; }
 
 #sources .co-skillpick { margin: 2px 0; }
+
+/* ---- Work in progress: never let unfinished scores pass for final ones ---- */
+.score-banner { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 14px; font-size: 13.5px; font-weight: 500; color: var(--text-normal); background: var(--accent-amber-soft); border: 1px solid #fcd34d; border-radius: var(--radius-md); }
+.score-banner[hidden] { display: none; }
+.processing-note { display: flex; align-items: center; gap: 8px; margin: 6px 0; padding: 8px 10px; font-size: 13px; color: var(--text-normal); background: var(--accent-amber-soft); border-radius: var(--radius-sm); }
+.application-row.is-processing .application-status { opacity: .65; font-style: italic; }
+.spinner { flex: none; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; border-right-color: currentColor; } }

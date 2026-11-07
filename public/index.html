@@ -70,6 +70,8 @@
 
     <!-- LOGGED IN -->
     <div id="appView" style="display:none;">
+        <div class="score-banner" id="scoreBanner" role="status" aria-live="polite" hidden><span class="spinner" aria-hidden="true"></span><span id="scoreBannerText"></span></div>
+
         <div class="app-shell" id="appShell">
             <div class="sidebar">
                 <nav class="workspace-menu" aria-label="Workspace sections">
@@ -842,8 +844,9 @@
                 return;
             }
             applicationsContainer.innerHTML = shown.map(item => `
-                <div class="application-row">
-                    <div class="application-row-head"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.company || 'Company not listed')} &middot; ${escapeHtml(item.source || '')}</small></div><span class="application-status ${item.status === 'applied' ? 'applied' : ''}">${escapeHtml(item.status.replaceAll('_',' '))}${item.quality_score ? ` &middot; ${String(item.quality_notes || '').startsWith('{"source":"career-ops"') ? 'ATS ' : ''}${item.quality_score}/100` : ''}</span></div>
+                <div class="application-row${item.processing ? ' is-processing' : ''}">
+                    <div class="application-row-head"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.company || 'Company not listed')} &middot; ${escapeHtml(item.source || '')}</small></div><span class="application-status ${item.status === 'applied' ? 'applied' : ''}">${escapeHtml(item.status.replaceAll('_',' '))}${item.quality_score ? ` &middot; ${String(item.quality_notes || '').startsWith('{"source":"career-ops"') ? 'ATS ' : ''}${item.quality_score}/100` : ''}${item.processing ? ' &middot; updating' : ''}</span></div>
+                    ${item.processing ? `<div class="processing-note" role="status"><span class="spinner" aria-hidden="true"></span> ${item.processing === 'rewriting' ? 'Career Ops is rewriting the resume and cover letter.' : item.processing === 'reviewing' ? 'The resume is being reviewed.' : 'The resume and cover letter are being prepared.'} Any score shown here is not final yet.</div>` : ''}
                     ${item.coScore != null ? `<div class="source-status">Career Ops: <strong>${Number(item.coScore).toFixed(1)}/5</strong> &middot; ${escapeHtml(item.coVerdict || '')} &middot; ${escapeHtml(item.coTier || '')}${item.coCoverage != null ? ` &middot; CV match ${Number(item.coCoverage)}%` : ''} &middot; <a href="#careerops">Open Career Ops</a></div>` : ''}
                     ${missingSkillsBlock(item)}
                     ${item.error ? `<div class="error-msg" style="display:block">${escapeHtml(item.error)}</div>` : ''}
@@ -870,6 +873,16 @@
             loadDashboard();
             if (typeof window.careerOpsRescan === 'function') window.careerOpsRescan();
         };
+        // Scores are not final while resumes, cover letters or scores are being recalculated: say so, everywhere.
+        let bannerBusy = '';
+        let bannerServer = '';
+        function updateScoreBanner() {
+            const message = bannerBusy || bannerServer;
+            document.getElementById('scoreBanner').hidden = !message;
+            document.getElementById('scoreBannerText').textContent = message;
+        }
+        window.portalBusy = message => { bannerBusy = message; updateScoreBanner(); };
+        window.portalIdle = () => { bannerBusy = ''; updateScoreBanner(); };
         let applicationsRefresh = null;
         async function loadApplications() {
             clearTimeout(applicationsRefresh);
@@ -877,6 +890,10 @@
             try {
                 const data = await api('/api/jobs/applications');
                 renderApplications(data.applications);
+                const working = data.applications.filter(item => item.processing).length;
+                bannerServer = data.scoring ? 'Updating every score and rebuilding your drafts. Scores you see right now may change; wait for this message to go away.'
+                    : working ? `${working} resume${working === 1 ? ' is' : 's are'} being prepared or rewritten. Scores on those applications are not final yet and may change.` : '';
+                updateScoreBanner();
                 // Hagent is still preparing something: check again shortly, and refresh the dashboard counts.
                 if (data.working) applicationsRefresh = setTimeout(() => { loadApplications(); loadDashboard(); }, 15000);
             } catch (err) {
@@ -908,12 +925,14 @@
                 if (!ticked.length) { appSkillMessages[jobId] = 'Tick at least one skill you genuinely have.'; renderApplications(lastApplications); return; }
                 addSkills.disabled = true;
                 addSkills.textContent = 'Adding…';
+                window.portalBusy('Adding your skills and updating every score. Scores may change until this message goes away.');
                 try {
                     const built = await api('/api/jobs/careerops/resume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId, targetScore: 90, confirmedSkills: ticked }) });
                     appSkillMessages[jobId] = `Added ${ticked.join(', ')}. CV match is now ${built.coverage}% and the ATS score is ${built.ats.score}/100. Remembered for future jobs.`;
                 } catch (err) { appSkillMessages[jobId] = 'Could not add those skills: ' + err.message; }
                 await loadApplications();
                 loadDashboard();
+                window.portalIdle();
                 if (typeof window.careerOpsRescan === 'function') window.careerOpsRescan();
                 return;
             }
