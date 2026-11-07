@@ -877,6 +877,8 @@
                 await api('/api/jobs/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jobId:reportButton.dataset.reportJob,category:'listing_issue',detail})});
                 reportButton.textContent='Reported'; reportButton.disabled=true; return;
             }
+            const goApplications = event.target.closest('[data-go-applications]');
+            if (goApplications) { const nav = document.querySelector('[data-workspace-target="applications"]'); if (nav) nav.click(); return; }
             const button = event.target.closest('[data-tailor-job]');
             if (!button) return;
             button.disabled = true;
@@ -935,10 +937,24 @@
                 const postedText = posted && !Number.isNaN(posted.getTime())
                     ? `Posted ${posted.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
                     : null;
+                const application = job.application || null;
+                const appLabels = { applied: 'Applied', ready_to_submit: 'Ready to submit', action_required: 'Needs you', needs_review: 'Needs you' };
+                const appLabel = application ? (appLabels[application.status] || 'Preparing') : '';
+                const appliedOn = application && application.status === 'applied' && application.appliedAt ? new Date(application.appliedAt) : null;
+                const appliedText = appliedOn && !Number.isNaN(appliedOn.getTime()) ? ' ' + appliedOn.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+                const flags = [
+                    job.isNew ? '<span class="job-flag new">New</span>' : '',
+                    application ? '<span class="job-flag ' + (application.status === 'applied' ? 'applied' : 'working') + '">' + escapeHtml(appLabel + appliedText) + '</span>' : '',
+                ].join('');
+                const tailorButton = !application
+                    ? `<button class="btn btn-primary btn-small" data-tailor-job="${escapeHtml(job.id)}">Tailor &amp; apply</button>`
+                    : application.status === 'applied'
+                        ? '<button class="btn btn-ghost btn-small" disabled>Applied</button>'
+                        : '<button class="btn btn-primary btn-small" data-go-applications>View application</button>';
                 const reasons = (job.matchReasons || []).slice(0, 3);
                 const gaps = (job.preferenceMismatches || []).slice(0, 4);
                 return `
-                    <div class="job-card">
+                    <div class="job-card" data-app-status="${application ? escapeHtml(application.status) : ''}" data-is-new="${job.isNew ? '1' : '0'}">
                         <div class="company-avatar" style="background:${colorForName(job.company || job.title || 'x')}">${escapeHtml(initial)}</div>
                         <div class="job-card-body">
                             <div class="job-card-top">
@@ -948,12 +964,13 @@
                                 </div>
                                 <span class="match-badge ${matchTier(job.matchScore)}"><span class="dot"></span>${job.matchCategory === 'full' ? 'Full match' : 'Recommended'} · ${job.matchScore}%</span>
                             </div>
+                            ${flags ? `<div class="job-flags">${flags}</div>` : ''}
                             <div class="job-meta">${metaItems.map(m => `<span>${m.icon}${escapeHtml(m.text)}</span>`).join('')}</div>
                             ${reasons.length ? `<div class="match-reasons">${reasons.map(reason => `<span class="match-reason">${escapeHtml(reason)}</span>`).join('')}</div>` : ''}
                             ${gaps.length ? `<div class="match-reasons preference-gaps">${gaps.map(gap => `<span class="match-reason">${escapeHtml(gap)}</span>`).join('')}</div>` : ''}
                             <div class="job-card-footer">
                                 <span class="source-tag">via ${escapeHtml(job.source || '')}${postedText ? ` · ${escapeHtml(postedText)}` : ''}</span>
-                                <span class="job-quick-actions"><button class="btn btn-ghost btn-small" data-save-job="${escapeHtml(job.id)}">${job.saved ? 'Saved' : 'Save'}</button><button class="btn btn-ghost btn-small" data-focus-job="${escapeHtml(job.id)}">Focus</button><button class="btn btn-ghost btn-small" data-hide-job="${escapeHtml(job.id)}">Hide</button><button class="btn btn-ghost btn-small" data-report-job="${escapeHtml(job.id)}">Report</button><button class="btn btn-ghost btn-small" data-co-evaluate="${escapeHtml(job.id)}">Evaluate</button><button class="btn btn-primary btn-small" data-tailor-job="${escapeHtml(job.id)}">Tailor &amp; apply</button><a class="apply-link" href="${escapeHtml(job.applyUrl || '#')}" target="_blank" rel="noopener noreferrer">Direct${ICON_APPLY}</a></span>
+                                <span class="job-quick-actions"><button class="btn btn-ghost btn-small" data-save-job="${escapeHtml(job.id)}">${job.saved ? 'Saved' : 'Save'}</button><button class="btn btn-ghost btn-small" data-focus-job="${escapeHtml(job.id)}">Focus</button><button class="btn btn-ghost btn-small" data-hide-job="${escapeHtml(job.id)}">Hide</button><button class="btn btn-ghost btn-small" data-report-job="${escapeHtml(job.id)}">Report</button><button class="btn btn-ghost btn-small" data-co-evaluate="${escapeHtml(job.id)}">Evaluate</button>${tailorButton}<a class="apply-link" href="${escapeHtml(job.applyUrl || '#')}" target="_blank" rel="noopener noreferrer">Direct${ICON_APPLY}</a></span>
                             </div>
                         </div>
                     </div>

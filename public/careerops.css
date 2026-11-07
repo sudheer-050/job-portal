@@ -147,3 +147,10 @@
 .cof-decision.ok { background: var(--accent-green-soft); }
 .cof-decision.warn { background: var(--accent-amber-soft); }
 @media (max-width: 520px) { .cof-checkbar .cof-why { width: 100%; } }
+
+/* ---- Job card flags: New, and where your application stands ---- */
+.job-flags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.job-flag { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+.job-flag.new { color: var(--accent-brand-ink); background: var(--accent-brand-soft); }
+.job-flag.applied { color: var(--accent-green); background: var(--accent-green-soft); }
+.job-flag.working { color: var(--accent-amber); background: var(--accent-amber-soft); }

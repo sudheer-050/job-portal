@@ -8,6 +8,8 @@
 
 ## Unreleased — Larger dashboard strip, full-height sidebar, clearer application steps
 
+- **Discover shows where each job stands:** every job card now carries a **New** flag (collected or posted in the last 3 days) and your application status (**Applied** with the date, **Ready to submit**, **Needs you** or **Preparing**). The button changes to match: applied jobs show a disabled **Applied** button and in-progress ones show **View application**, so a job you already started is never tailored twice.
+- **Discover filters:** **Hide applied** (on by default) and **New only**, remembered in your browser.
 - **In progress split in two:** the dashboard now shows **Ready to submit** (prepared, waiting for you to send it) and **Needs you** (login, CAPTCHA, an answer or a review). The strip has six tiles.
 - **Mark applied:** every application that is ready to submit or needs you has a **Mark applied** button for when you have submitted on the employer's site; the tiles update immediately. **Submit now** only appears when automatic submission is actually configured. Ready applications say what to do next.
 - **Layout:** the KPI strip moved to the right, above the main content, and the sidebar now runs the full height of the window from the header down, instead of starting below the strip. On narrow screens the sidebar stacks above the strip as before.

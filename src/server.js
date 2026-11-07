@@ -782,13 +782,18 @@ app.get('/api/jobs/recommendations', requireAuth, async (req, res) => {
         await jobService.refreshForPreferences(preferences);
         const candidateText = `${profile.skills || ''} ${resumeResult.rows[0]?.resume_text || ''}`.trim();
         const recommendations = await jobService.recommendations(preferences, candidateText);
-        const [saved, hidden] = await Promise.all([
+        const [saved, hidden, applications] = await Promise.all([
             pool.query('SELECT job_id FROM job_saved_jobs WHERE username=$1', [req.jobUsername]),
             pool.query('SELECT job_id FROM job_hidden_jobs WHERE username=$1', [req.jobUsername]),
+            pool.query('SELECT job_id,status,applied_at FROM job_applications WHERE username=$1', [req.jobUsername]),
         ]);
+        const applicationByJob = new Map(applications.rows.map(row => [row.job_id, { status: row.status, appliedAt: row.applied_at }]));
+        // "New" = first collected, or posted, in the last 3 days.
+        const newSince = Date.now() - 3 * 24 * 60 * 60 * 1000;
+        const isNewJob = job => [job.firstSeenAt, job.postedAt].some(value => value && new Date(value).getTime() >= newSince);
         const savedIds = new Set(saved.rows.map(row => row.job_id));
         const hiddenIds = new Set(hidden.rows.map(row => row.job_id));
-        res.json({ recommendations: recommendations.filter(job => !hiddenIds.has(job.id)).map(job => ({ ...job, saved: savedIds.has(job.id) })) });
+        res.json({ recommendations: recommendations.filter(job => !hiddenIds.has(job.id)).map(job => ({ ...job, saved: savedIds.has(job.id), isNew: isNewJob(job), application: applicationByJob.get(job.id) || null })) });
     } catch (error) {
         console.error('recommendations failed:', error.message);
         res.status(502).json({ error: 'Unable to refresh job recommendations right now.' });
