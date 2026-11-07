@@ -70,7 +70,7 @@ function pastedJob(body) {
 function buildPayload({ job, evaluation, built, ats, cover }) {
     return {
         jobId: job.id, job: { title: job.title, company: job.company },
-        score: evaluation.score, verdict: evaluation.verdict,
+        score: evaluation.score, verdict: evaluation.verdict, coverage: evaluation.meta.coverage,
         resume: { structured: built.tailored, markdown: renderMarkdown(built.tailored), html: renderHtml(built.tailored) },
         coverLetter: cover, changes: built.changes, factCheck: built.factCheck, keywords: built.keywords, warnings: built.warnings,
         appliedRewrites: built.appliedRewrites, rejectedRewrites: built.rejectedRewrites, ats,

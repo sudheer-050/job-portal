@@ -158,3 +158,8 @@
 /* ---- Confirm missing skills ---- */
 .co-skillpick { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border-color-soft); border-radius: 999px; background: #fff; font-size: 13px; cursor: pointer; }
 .co-skillpick:has(input:checked) { border-color: var(--accent-brand); background: var(--accent-brand-soft); }
+
+.cof-ask { margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--border-color-soft); border-radius: var(--radius-md); background: #fff; }
+.cof-ask h4 { margin: 0 0 6px; }
+.cof-ask-body { margin-top: 10px; display: grid; gap: 10px; }
+.cof-ask-body .cof-actions { margin-top: 0; justify-content: flex-start; }
