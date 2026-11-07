@@ -6,8 +6,9 @@
 
 **Last reviewed:** 2026-11-06
 
-## Unreleased — Larger dashboard strip
+## Unreleased — Larger dashboard strip and full-height sidebar
 
+- **Layout:** the KPI strip moved to the right, above the main content, and the sidebar now runs the full height of the window from the header down, instead of starting below the strip. On narrow screens the sidebar stacks above the strip as before.
 - **Dashboard tiles:** the five tiles are larger (bigger numbers and labels, taller) and are now one bar split into five equal sections with thin dividers, running edge to edge across the content area. Still one row at every width; below about 1,000px the bar scrolls sideways.
 
 ## 3.5.0 — Inline apply check and a compact dashboard
