@@ -905,7 +905,8 @@ function resumePagesOf(row) {
     }
     return pageCache.get(key);
 }
-const tooLong = row => row.status === 'ready_to_submit' && row.resumePages > 1 && !String(row.error || '').startsWith(REWRITE_FAILED);
+// Any application that has not been sent keeps to the one-page rule, including ones waiting on a login or a connector.
+const tooLong = row => ['ready_to_submit', 'action_required'].includes(row.status) && row.resumePages > 1 && !String(row.error || '').startsWith(REWRITE_FAILED);
 const needsRewrite = row => tooLong(row) || (row.status === 'needs_review' && !String(row.error || '').startsWith(REWRITE_FAILED))
     || (['tailoring', 'verifying'].includes(row.status) && Date.now() - new Date(row.updated_at).getTime() > REWRITE_AFTER_MINUTES * 60000 && !String(row.error || '').startsWith(REWRITE_FAILED));
 
@@ -913,13 +914,13 @@ async function autoRewriteApplications(username) {
     if (!careerOps) return;
     const rows = (await pool.query(
         `SELECT id,status,error,updated_at,quality_score,tailored_resume,resume_version FROM job_applications
-         WHERE username=$1 AND status IN ('needs_review','tailoring','verifying','ready_to_submit') ORDER BY updated_at LIMIT 80`, [username]
+         WHERE username=$1 AND status IN ('needs_review','tailoring','verifying','ready_to_submit','action_required') ORDER BY updated_at LIMIT 80`, [username]
     )).rows.map(row => ({ ...row, resumePages: resumePagesOf(row) })).filter(row => needsRewrite(row) && !applicationsBeingRewritten.has(row.id) && !applicationsBeingSynced.has(row.id));
     let rewritten = 0;
     for (const row of rows) {
         applicationsBeingRewritten.add(row.id);
         try {
-            const reason = row.status === 'ready_to_submit' ? `its resume ran to ${row.resumePages} pages and a resume must be one page`
+            const reason = ['ready_to_submit', 'action_required'].includes(row.status) ? `its resume ran to ${row.resumePages} pages and a resume must be one page`
                 : row.status === 'needs_review'
                     ? `Hagent's review${row.quality_score != null ? ` scored it ${row.quality_score}/100 and` : ''} asked for changes`
                     : 'Hagent had not finished it';
