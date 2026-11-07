@@ -907,7 +907,7 @@
                         ${item.cover_letter ? downloadMenu(`Download cover letter v${item.cover_letter_version || 1}`, `/api/jobs/applications/${item.id}/cover-letter`) : ''}
                         <a class="btn btn-ghost" href="${escapeHtml(item.applyUrl)}" target="_blank" rel="noopener noreferrer">Open application / track</a>
                         ${item.status !== 'applied' ? `<button type="button" class="btn btn-ghost" data-app-improve="${escapeHtml(item.job_id)}" aria-expanded="${improveOpen[item.job_id] ? 'true' : 'false'}">${improveOpen[item.job_id] ? 'Hide' : 'How to improve this score'}</button>` : ''}
-                        ${item.status === 'needs_review' ? `<button type="button" class="btn btn-ghost" data-app-rewrite="${item.id}" title="Replace this draft with a fact-checked Career Ops one">Rewrite with Career Ops</button>` : ''}
+                        ${item.status === 'needs_review' || (item.resumePages > 1 && item.status !== 'applied') ? `<button type="button" class="btn btn-ghost" data-app-rewrite="${item.id}" title="Replace this draft with a fact-checked Career Ops one">Rewrite with Career Ops</button>` : ''}
                         ${item.status === 'ready_to_submit' || item.status === 'action_required' ? `<button class="btn btn-primary" data-mark-applied="${item.id}" title="Use this after you have submitted the application on the employer's site">Mark applied</button>` : ''}
                         ${item.status === 'ready_to_submit' && autoApplyReady ? `<button class="btn btn-ghost" data-submit-application="${item.id}">Submit now</button>` : ''}
                     </div>

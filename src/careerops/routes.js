@@ -563,7 +563,7 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         const found = await pool.query('SELECT id,job_id,status,quality_score FROM job_applications WHERE id=$1 AND username=$2', [applicationId, username]);
         const row = found.rows[0];
         if (!row) throw httpError(404, 'Application not found.');
-        const rewritable = includeReady ? ['needs_review', 'tailoring', 'verifying', 'ready_to_submit'] : ['needs_review', 'tailoring', 'verifying'];
+        const rewritable = includeReady ? ['needs_review', 'tailoring', 'verifying', 'ready_to_submit', 'action_required'] : ['needs_review', 'tailoring', 'verifying'];
         if (!rewritable.includes(row.status)) throw httpError(409, 'Only applications that are being prepared or need review can be rewritten.');
         const ctx = await context(username);
         if (!ctx.resumeText) throw httpError(400, 'Upload your source resume first.');
@@ -582,9 +582,9 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
             changes: payload.changes, warnings: payload.warnings, notEvidenced: payload.keywords.notEvidenced,
         });
         const updated = await pool.query(
-            `UPDATE job_applications SET status='ready_to_submit', tailored_resume=$3, cover_letter=$4,
+            `UPDATE job_applications SET status=CASE WHEN status='action_required' THEN status ELSE 'ready_to_submit' END, tailored_resume=$3, cover_letter=$4,
                     resume_version=resume_version+1, cover_letter_version=cover_letter_version+1,
-                    quality_score=$5, quality_verdict='PASS', quality_notes=$6, error=NULL, updated_at=now()
+                    quality_score=$5, quality_verdict='PASS', quality_notes=$6, error=CASE WHEN status='action_required' THEN error ELSE NULL END, updated_at=now()
              WHERE id=$1 AND username=$2 AND status = ANY($7::text[]) RETURNING id,job_id,status`,
             [applicationId, username, payload.resume.markdown, payload.coverLetter.text, ats.score, notes, rewritable]
         );
