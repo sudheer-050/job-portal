@@ -24,6 +24,10 @@
 
 - **Pick missing skills right on the row:** each application below 95% CV match now lists its missing skills with tick boxes directly under the Career Ops score, with **Add ticked skills to my resume** beside them; the CV match updates in place. The Discover check panel shows the same list open by default (it can still be collapsed). The Career Ops tab, when opened for a job, builds the resume straight away so its question is on screen.
 
+## Unreleased — Applications rewrite themselves
+
+- **Automatic rewrite:** an application that failed Hagent's review (needs review), or that Hagent has not finished after 30 minutes, is rewritten by Career Ops in the background the next time the Applications list loads. The new resume and cover letter use the same fact check as any other Career Ops draft; only a draft that passes replaces the old one, and the application moves to **Ready to submit** (resume and cover letter versions go up by one). Nothing is ever submitted automatically. Rows say they were rewritten and why, one notification summarises a batch, and an application that cannot be rewritten (for example no resume uploaded) shows the reason once and is not retried. Applications waiting on a login or CAPTCHA are left alone. A **Rewrite with Career Ops** button on Needs you rows does it on demand (POST /api/jobs/applications/:id/rewrite).
+
 ## Unreleased — Separate application tabs
 
 - **Applications now has four tabs:** **Preparing**, **Ready to submit**, **Needs you** and **Applied**, each with a count. They replace the combined "Preparing / ready" tab, so what is waiting for you is no longer mixed with what is still being prepared. The dashboard tiles open the matching tab, and the old "Showing only" filter line is gone.

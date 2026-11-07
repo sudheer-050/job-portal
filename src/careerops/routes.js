@@ -540,7 +540,41 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         }
     }));
 
-    return { createPreparedApplication, dashboardStats, evaluateJobForUser, rememberedSkills: async username => (await rememberedSkills(username)).map(item => item.skill), schemaReady, syncAlerts };
+    // Replace the draft of an application that is stuck or failed Hagent's review with a Career Ops one.
+    // The new resume must pass the same fact check as any other; otherwise nothing changes.
+    async function rewriteApplication(username, applicationId, reason = 'it needed a rewrite') {
+        await schemaReady;
+        const found = await pool.query('SELECT id,job_id,status,quality_score FROM job_applications WHERE id=$1 AND username=$2', [applicationId, username]);
+        const row = found.rows[0];
+        if (!row) throw httpError(404, 'Application not found.');
+        if (!['needs_review', 'tailoring', 'verifying'].includes(row.status)) throw httpError(409, 'Only applications that are being prepared or need review can be rewritten.');
+        const ctx = await context(username);
+        if (!ctx.resumeText) throw httpError(400, 'Upload your source resume first.');
+        const posting = await pool.query('SELECT * FROM job_postings WHERE id=$1', [row.job_id]);
+        if (!posting.rows.length) throw httpError(404, 'That job is no longer available.');
+        const job = toJob(posting.rows[0]);
+        const { payload, ats } = await prepareDocuments(username, job, ctx);
+        if (!payload.factCheck.ok) throw httpError(422, 'The rewritten resume did not pass the fact check, so it was not used.');
+        const notes = JSON.stringify({
+            source: 'career-ops',
+            rewrittenFrom: { status: row.status, previousScore: row.quality_score, reason },
+            jobFit: { score: payload.score, verdict: payload.verdict.label },
+            ats: { score: ats.score, target: ats.target, reached: ats.reached, explanation: ats.explanation },
+            changes: payload.changes, warnings: payload.warnings, notEvidenced: payload.keywords.notEvidenced,
+        });
+        const updated = await pool.query(
+            `UPDATE job_applications SET status='ready_to_submit', tailored_resume=$3, cover_letter=$4,
+                    resume_version=resume_version+1, cover_letter_version=cover_letter_version+1,
+                    quality_score=$5, quality_verdict='PASS', quality_notes=$6, error=NULL, updated_at=now()
+             WHERE id=$1 AND username=$2 AND status IN ('needs_review','tailoring','verifying') RETURNING id,job_id,status`,
+            [applicationId, username, payload.resume.markdown, payload.coverLetter.text, ats.score, notes]
+        );
+        if (!updated.rows.length) throw httpError(409, 'The application changed while it was being rewritten.');
+        await recordApplicationEvent(applicationId, 'auto_rewritten', `Rewritten with Career Ops (ATS ${ats.score}/100) because ${reason}. Waiting for your review.`);
+        return { application: updated.rows[0], ats: { score: ats.score, reached: ats.reached }, title: job.title };
+    }
+
+    return { createPreparedApplication, rewriteApplication, dashboardStats, evaluateJobForUser, rememberedSkills: async username => (await rememberedSkills(username)).map(item => item.skill), schemaReady, syncAlerts };
 }
 
 module.exports = { SCHEMA, pastedJob, registerCareerOps, toJob };
