@@ -137,3 +137,13 @@
 #sources .src-link { font-size: 12px; color: var(--text-faint); overflow-wrap: anywhere; }
 @media (max-width: 620px) { #sources .src-row { grid-template-columns: 1fr; gap: 6px; } }
 #sources input[type="file"] { max-width: 100%; min-width: 0; }
+
+/* ---- Check before you apply: sits below the Tailor & apply buttons ---- */
+.cof-checkbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--border-color-soft); }
+.cof-checkbar .cof-row { flex: 1 1 260px; margin: 0; min-width: 0; }
+.cof-checkbar .cof-why { margin-left: auto; flex: 0 0 auto; }
+.cof-checkbar + .cof-panel { margin: 10px 0 0; }
+.cof-decision { display: flex; flex-direction: column; gap: 2px; margin: 0 0 12px; padding: 10px 12px; border-radius: var(--radius-md); font-size: 13px; line-height: 1.5; color: var(--text-normal); }
+.cof-decision.ok { background: var(--accent-green-soft); }
+.cof-decision.warn { background: var(--accent-amber-soft); }
+@media (max-width: 520px) { .cof-checkbar .cof-why { width: 100%; } }
