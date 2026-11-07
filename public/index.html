@@ -187,9 +187,9 @@
             <section class="summary-grid" aria-label="Career dashboard">
                 <a class="summary-card" href="#matches" title="Jobs Career Ops scored 4.0 or higher that you have not started"><strong id="statStrong">0</strong><span>Strong matches</span></a>
                 <a class="summary-card" href="#saved" title="Jobs you saved"><strong id="statSaved">0</strong><span>Saved</span></a>
-                <a class="summary-card" href="#applications" title="Prepared applications waiting for you to send and mark as applied"><strong id="statReady">0</strong><span>Ready to submit</span></a>
-            <a class="summary-card" href="#applications" title="Applications that need a login, a CAPTCHA, an answer or a review from you"><strong id="statNeeds">0</strong><span>Needs you</span></a>
-                <a class="summary-card" href="#applications" title="Applications you have sent"><strong id="statApplied">0</strong><span>Applied</span></a>
+                <a class="summary-card" href="#applications" data-app-filter="ready" title="Prepared applications waiting for you to send and mark as applied"><strong id="statReady">0</strong><span>Ready to submit</span></a>
+            <a class="summary-card" href="#applications" data-app-filter="needs" title="Applications that need a login, a CAPTCHA, an answer or a review from you"><strong id="statNeeds">0</strong><span>Needs you</span></a>
+                <a class="summary-card" href="#applications" data-app-filter="applied" title="Applications you have sent"><strong id="statApplied">0</strong><span>Applied</span></a>
                 <a class="summary-card" href="#careerops" title="Follow-ups that are due or overdue"><strong id="statFollowups">0</strong><span>Follow-ups due</span></a>
             </section>
                 <div class="workspace-view-title"><div><h2 id="workspaceViewTitle">Discover jobs</h2><p id="workspaceViewSubtitle">Search, shortlist, and act on your strongest matches.</p></div></div>
@@ -775,6 +775,9 @@
         const messagesContainer = document.getElementById('messagesContainer');
         const alertsContainer = document.getElementById('alertsContainer');
         let applicationTab = 'active';
+        let applicationFilter = 'all';
+        const APPLICATION_FILTERS = { ready: ['ready_to_submit'], needs: ['action_required', 'needs_review'] };
+        const APPLICATION_FILTER_LABELS = { ready: 'Ready to submit', needs: 'Needs you' };
         let autoApplyReady = false;
         let lastApplications = [];
 
@@ -808,12 +811,17 @@
 
         function renderApplications(items) {
             lastApplications = items || [];
-            const shown = (items || []).filter(item => applicationTab === 'applied' ? item.status === 'applied' : item.status !== 'applied');
+            const statuses = applicationTab === 'applied' ? null : APPLICATION_FILTERS[applicationFilter];
+            const shown = (items || []).filter(item => applicationTab === 'applied' ? item.status === 'applied' : item.status !== 'applied' && (!statuses || statuses.includes(item.status)));
+            const filterBar = statuses
+                ? `<div class="source-status application-filter">Showing only <strong>${escapeHtml(APPLICATION_FILTER_LABELS[applicationFilter])}</strong> (${shown.length}) &middot; <button type="button" class="link-btn" data-app-filter-clear>Show everything in progress</button></div>`
+                : '';
             if (!shown.length) {
-                applicationsContainer.innerHTML = `<span class="source-status">${applicationTab === 'applied' ? 'No applied jobs yet.' : 'No applications being prepared.'}</span>`;
+                const empty = applicationTab === 'applied' ? 'No applied jobs yet.' : statuses ? 'Nothing is in this state right now.' : 'No applications being prepared.';
+                applicationsContainer.innerHTML = filterBar + `<span class="source-status">${empty}</span>`;
                 return;
             }
-            applicationsContainer.innerHTML = shown.map(item => `
+            applicationsContainer.innerHTML = filterBar + shown.map(item => `
                 <div class="application-row">
                     <div class="application-row-head"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.company || 'Company not listed')} &middot; ${escapeHtml(item.source || '')}</small></div><span class="application-status ${item.status === 'applied' ? 'applied' : ''}">${escapeHtml(item.status.replaceAll('_',' '))}${item.quality_score ? ` &middot; ${String(item.quality_notes || '').startsWith('{"source":"career-ops"') ? 'ATS ' : ''}${item.quality_score}/100` : ''}</span></div>
                     ${item.coScore != null ? `<div class="source-status">Career Ops: <strong>${Number(item.coScore).toFixed(1)}/5</strong> &middot; ${escapeHtml(item.coVerdict || '')} &middot; ${escapeHtml(item.coTier || '')}${item.coCoverage != null ? ` &middot; CV match ${Number(item.coCoverage)}%` : ''} &middot; <a href="#careerops">Open Career Ops</a></div>` : ''}
@@ -841,10 +849,12 @@
         document.querySelectorAll('[data-application-tab]').forEach(button => button.addEventListener('click', () => {
             document.querySelectorAll('[data-application-tab]').forEach(item => item.classList.toggle('active', item === button));
             applicationTab = button.dataset.applicationTab;
+            applicationFilter = 'all';
             loadApplications();
         }));
 
         applicationsContainer.addEventListener('click', async event => {
+            if (event.target.closest('[data-app-filter-clear]')) { applicationFilter = 'all'; renderApplications(lastApplications); return; }
             const submitButton = event.target.closest('[data-submit-application]');
             const appliedButton = event.target.closest('[data-mark-applied]');
             if (!submitButton && !appliedButton) return;
@@ -856,6 +866,19 @@
             } catch (err) { alert(err.message); }
             loadApplications();
             loadDashboard();
+        });
+
+        // The dashboard tiles open Applications already filtered to what they count.
+        document.querySelector('.summary-grid').addEventListener('click', event => {
+            const tile = event.target.closest('[data-app-filter]');
+            if (!tile) return;
+            event.preventDefault();
+            applicationTab = tile.dataset.appFilter === 'applied' ? 'applied' : 'active';
+            applicationFilter = tile.dataset.appFilter === 'applied' ? 'all' : tile.dataset.appFilter;
+            document.querySelectorAll('[data-application-tab]').forEach(item => item.classList.toggle('active', item.dataset.applicationTab === applicationTab));
+            setWorkspaceView('applications');
+            renderApplications(lastApplications);
+            loadApplications();
         });
 
         recsContainer.addEventListener('click', async event => {
