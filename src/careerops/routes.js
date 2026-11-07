@@ -359,6 +359,30 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         return summarizeEvaluation(job.id, evaluation);
     }
 
+    async function pipelineWithNext(username) {
+        const { profile } = await context(username);
+        return (await pipelineRows(username)).map(row => ({ ...row, next: nextFollowUp(row, { profileName: profile.full_name || '' }) }));
+    }
+
+    // The two Career Ops numbers on the dashboard: strong jobs not started yet, and follow-ups that are due.
+    const statsCache = new Map();
+    async function dashboardStats(username) {
+        const hit = statsCache.get(username);
+        if (hit && Date.now() - hit.at < 60 * 1000) return hit.value;
+        await schemaReady;
+        const strong = (await pool.query(
+            `SELECT count(*)::int AS n FROM job_evaluations e JOIN job_postings p ON p.id=e.job_id
+             WHERE e.username=$1 AND e.score >= 4 AND e.legitimacy_tier <> 'Suspicious' AND p.active=true
+               AND jsonb_array_length(COALESCE(e.result->'blockers','[]'::jsonb)) = 0
+               AND NOT EXISTS (SELECT 1 FROM job_applications a WHERE a.username=e.username AND a.job_id=e.job_id)
+               AND NOT EXISTS (SELECT 1 FROM job_hidden_jobs h WHERE h.username=e.username AND h.job_id=e.job_id)`, [username]
+        )).rows[0].n;
+        const followups = (await pipelineWithNext(username)).filter(row => row.next && ['due', 'overdue'].includes(row.next.urgency)).length;
+        const value = { strong, followups };
+        statsCache.set(username, { at: Date.now(), value });
+        return value;
+    }
+
     // Turn due or overdue follow-ups into Action Center notifications (once per follow-up per week).
     const lastAlertSync = new Map();
     async function syncAlerts(username, { force = false, minIntervalMs = 5 * 60 * 1000 } = {}) {
@@ -366,8 +390,7 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         if (!force && Date.now() - last < minIntervalMs) return 0;
         lastAlertSync.set(username, Date.now());
         await schemaReady;
-        const { profile } = await context(username);
-        const rows = (await pipelineRows(username)).map(row => ({ ...row, next: nextFollowUp(row, { profileName: profile.full_name || '' }) }));
+        const rows = await pipelineWithNext(username);
         let created = 0;
         for (const alert of alertsFromPipeline(rows)) {
             const result = await pool.query(
@@ -460,7 +483,7 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         }
     }));
 
-    return { createPreparedApplication, evaluateJobForUser, schemaReady, syncAlerts };
+    return { createPreparedApplication, dashboardStats, evaluateJobForUser, schemaReady, syncAlerts };
 }
 
 module.exports = { SCHEMA, pastedJob, registerCareerOps, toJob };

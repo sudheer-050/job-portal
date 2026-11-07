@@ -6,6 +6,12 @@
 
 **Last reviewed:** 2026-11-06
 
+## Unreleased — Profile sources and a clearer dashboard
+
+- **Keep your profile up to date:** suggest projects, experience and skills from your public GitHub repositories (your own, non-fork), your portfolio website, and your LinkedIn data export. Suggestions wait in a review list; nothing reaches your resume or skills until you approve it, dismissed items never return, and approved items create a new resume version that Career Ops uses on its next scan. GitHub and the portfolio are checked about weekly (switch-off available) with a quiet notification when something new appears. New endpoints under `/api/jobs/profile-sources`; new tables `job_profile_sources` and `job_source_findings`; optional `GITHUB_TOKEN`.
+- **Dashboard tiles:** the KPI strip now lines up exactly with the content below it (it was inset twice), uses equal-size tiles that divide evenly at every width (8, then 4 + 4, then 2 × 4), and each tile links to its section. Two Career Ops tiles were added: **Strong matches** (4.0+ jobs you have not started) and **Follow-ups due**.
+- Fixed a phone-width overflow in the Profile view.
+
 ## Unreleased — Career Ops inside the portal's steps
 
 - **Discover:** matches are scanned automatically against your resume; each job card shows its Career Ops score, verdict, legitimacy and CV coverage, with sorting by score and an option to hide jobs below 4.0 or flagged as suspicious.

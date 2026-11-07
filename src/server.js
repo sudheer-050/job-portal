@@ -12,6 +12,7 @@ const pdfParse = require('pdf-parse');
 const { createJobService } = require('./jobs/service');
 const { registerCareerOps } = require('./careerops/routes');
 const { registerPasswordReset } = require('./auth/passwordReset');
+const { registerProfileSources } = require('./profile/routes');
 const { version: APP_VERSION } = require('../package.json');
 
 const PORT = Number(process.env.PORT || 3000);
@@ -39,6 +40,7 @@ app.use('/jobs', express.static(path.join(__dirname, '..', 'public'), { index: f
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const jobService = createJobService({ pool });
 let careerOps = null; // set by registerCareerOps below; used to run Career Ops inside the portal's own steps
+let profileSources = null; // set by registerProfileSources below; keeps the profile up to date from GitHub, a portfolio and LinkedIn
 
 const ready = (async () => {
     await pool.query(`
@@ -954,6 +956,8 @@ app.post('/api/jobs/messages/:id/read', requireAuth, asyncRoute(async (req, res)
 app.get('/api/jobs/notifications', requireAuth, asyncRoute(async (req, res) => {
     // Due follow-ups from Career Ops appear in the Action Center (checked at most every few minutes per user).
     if (careerOps) await careerOps.syncAlerts(req.jobUsername).catch(error => console.error('Career Ops alerts failed:', error.message));
+    // Weekly check of GitHub / portfolio for new projects; runs in the background and never delays the response.
+    profileSources?.maybeAutoCheck(req.jobUsername).catch(error => console.error('Profile source check failed:', error.message));
     const result = await pool.query(
         `SELECT id,kind,title,body,link,read_at AS "readAt",created_at AS "createdAt"
          FROM job_notifications WHERE username=$1 ORDER BY created_at DESC LIMIT 100`, [req.jobUsername]
@@ -982,7 +986,10 @@ app.get('/api/jobs/dashboard', requireAuth, asyncRoute(async (req, res) => {
           (SELECT count(*)::int FROM job_offers WHERE username=$1 AND status='considering') AS offers`,
         [req.jobUsername]
     );
-    res.json({ summary: result.rows[0] });
+    const summary = result.rows[0];
+    // Career Ops KPIs (strong jobs not started yet, follow-ups due); the other tiles still work if this fails.
+    if (careerOps) Object.assign(summary, await careerOps.dashboardStats(req.jobUsername).catch(() => ({})));
+    res.json({ summary });
 }));
 
 app.get('/api/jobs/saved', requireAuth, asyncRoute(async (req, res) => {
@@ -1315,6 +1322,7 @@ app.post('/api/jobs/reports', requireAuth, asyncRoute(async (req, res) => {
 }));
 
 registerPasswordReset(app, { pool, ready });
+profileSources = registerProfileSources(app, { pool, requireAuth, asyncRoute, ready });
 careerOps = registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, hooks: { recordApplicationEvent, notifyUser } });
 
 app.use((error, _req, res, _next) => {
