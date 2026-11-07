@@ -8,6 +8,7 @@
 const { countTerm, extractKeywords } = require('./keywords');
 const { DATE_RANGE, tailorResume } = require('./resume');
 const { describeRemoval, fitToPages } = require('./onepage');
+const { applyResumeRules, checkResumeRules } = require('./rules');
 
 const LEVEL_WORDS = new Set(['senior', 'junior', 'lead', 'staff', 'principal', 'sr', 'jr', 'associate', 'head', 'chief', 'intern', 'i', 'ii', 'iii', 'iv']);
 const ACTION_START = /^(?:[A-Z][a-z]+ed|Built|Led|Wrote|Ran|Drove|Made|Grew|Cut|Won|Taught|Led|Led|Chose|Began|Sold|Set|Held|Kept|Spoke|Oversaw|Undertook|Rebuilt|Rewrote|Redesigned|Developed|Delivered|Saved|Shipped|Launched)\b/;
@@ -113,10 +114,15 @@ async function optimizeForAts({ resumeText, job, profile = {}, rewrites = [], ta
     let best = null;
     const attempt = (label, options, extraRewrites = rewrites) => {
         const built = tailorResume({ resumeText, job, profile, rewrites: extraRewrites, ...options });
-        // Hard rule: one page. Only removes content, so the fact check above still holds.
+        // Hard rules: the standard resume rules first (they only remove or reorder), then one page. The fact check above still holds.
+        const jobKeywords = extractKeywords(`${job.title || ''}\n${job.description || ''}`, { limit: 20 }).map(item => item.term);
+        const ruled = applyResumeRules(built.tailored, { keywords: jobKeywords });
+        built.tailored = ruled.tailored;
+        built.changes = [...built.changes, ...ruled.changes];
         const fitted = fitToPages(built.tailored, { pages: 1 });
         built.tailored = fitted.tailored;
         built.pages = fitted.pages;
+        built.rules = checkResumeRules(built.tailored, { pages: fitted.pages });
         if (fitted.removed.length) built.changes = [...built.changes, describeRemoval(fitted.removed)];
         if (!fitted.fits) built.warnings = [...built.warnings, 'This resume still runs past one page after removing everything that could be left out. Shorten your name line, contact details or education in your source resume.'];
         const ats = scoreAts({ tailored: built.tailored, job, candidateText });

@@ -84,7 +84,7 @@ function buildPayload({ job, evaluation, built, ats, cover }) {
         jobId: job.id, job: { title: job.title, company: job.company },
         score: evaluation.score, verdict: evaluation.verdict, coverage: evaluation.meta.coverage,
         resume: { structured: built.tailored, markdown: renderMarkdown(built.tailored), html: renderHtml(built.tailored) },
-        coverLetter: cover, changes: built.changes, factCheck: built.factCheck, keywords: built.keywords, warnings: built.warnings, pages: built.pages,
+        coverLetter: cover, changes: built.changes, factCheck: built.factCheck, keywords: built.keywords, warnings: built.warnings, pages: built.pages, rules: built.rules,
         appliedRewrites: built.appliedRewrites, rejectedRewrites: built.rejectedRewrites, ats,
         generatedAt: new Date().toISOString(),
     };
@@ -644,7 +644,7 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         }
         res.json({
             jobId: job.id, title: job.title, score: best.ats.score, ceiling: best.ats.ceiling, ifAllConfirmed,
-            missingSkills, issues: best.ats.issues, ...improvementDetails({ ats: best.ats, tailored: best.built.tailored }),
+            missingSkills, issues: best.ats.issues, rules: best.built.rules, ...improvementDetails({ ats: best.ats, tailored: best.built.tailored }),
         });
     }));
 
