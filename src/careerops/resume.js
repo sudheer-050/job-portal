@@ -15,6 +15,9 @@ const SECTION_TYPES = [
     ['summary', /^(professional\s+)?(summary|profile|objective|about( me)?|career summary)$/i],
     ['experience', /^((work|professional|relevant|employment)\s+)?(experience|history)|^employment( history)?$/i],
     ['education', /^(education|academic background|academics|education (?:&|and) training)$/i],
+    // Sections a resume should not carry (references, hobbies, personal details). Recognised so they are left out
+    // instead of being absorbed into the section above them.
+    ['filler', /^(references?|hobbies( (?:&|and) interests)?|personal (?:details|information)|declaration)$/i],
     ['skills', /^((technical|core|key|professional)\s+)?(skills|competencies|technologies|tools|expertise)(\s+(?:&|and)\s+\w+)?$/i],
     ['projects', /^(selected |personal |key |academic )?projects?$/i],
     ['certifications', /^(certifications?|licenses?(?: (?:&|and) certifications?)?|training|courses)$/i],
@@ -104,6 +107,7 @@ function parseResume(text) {
         name,
         contact: parseContact(headerLines.length ? headerLines : nonEmpty),
         headerLines,
+        droppedFiller: byType('filler').map(section => section.title),
         summary: clean(byType('summary').flatMap(section => section.lines).join(' ')),
         experience: byType('experience').flatMap(section => parseExperience(section.lines)),
         skills: splitList(byType('skills').flatMap(section => section.lines)),
@@ -192,6 +196,8 @@ function tailorResume({ resumeText, job = {}, profile = {}, maxBullets = 6, rewr
         if (parts.length) { summary = `${parts.join(' with ')}.`; summaryGenerated = true; changes.push('Wrote a short summary using only your profile facts (edit freely).'); }
     }
 
+    if (parsed.droppedFiller.length) changes.push(`Left out sections a resume should not carry: ${parsed.droppedFiller.join(', ')}.`);
+
     const gapKeywords = keywords.filter(item => !countTerm(`${resumeText}\n${profile.skills || ''}`, item.term)).map(item => item.term).slice(0, 10);
     const tailored = {
         name: parsed.name || profile.full_name || '',
@@ -237,7 +243,8 @@ function verifyTailoredFacts(tailored, resumeText, profile = {}, appliedRewrites
     tailored.education.forEach(line => test(line, 'education'));
     tailored.certifications.forEach(line => test(line, 'certification'));
     tailored.skills.forEach(line => test(line, 'skill'));
-    if (!tailored.summaryGenerated && tailored.summary) test(tailored.summary, 'summary');
+    // a summary may be cut back to some of the person's own sentences, so each sentence is checked on its own
+    if (!tailored.summaryGenerated && tailored.summary) tailored.summary.split(/(?<=[.!?])\s+/).forEach(sentence => test(sentence, 'summary'));
     return { ok: unsupported.length === 0, unsupported, checked: 'Every line was matched back to your source resume or saved profile.' };
 }
 

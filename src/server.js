@@ -353,7 +353,8 @@ function requireAuth(req, res, next) {
     }
 }
 
-const { pageCount, renderDocument } = require('./documents/export');
+const { pageCount, paragraphLines, renderDocument } = require('./documents/export');
+const { LIMITS: RESUME_LIMITS, RULES_TEXT } = require('./careerops/rules');
 const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 
 async function hagentCli(argv) {
@@ -404,7 +405,7 @@ async function completedHagentOutput(issueId) {
 function applicationPrompt(job, resumeText, profile = {}, answers = []) {
     return [
         'Tailor the source resume for this exact job without inventing or upgrading any fact.',
-        'HARD RULE: the tailored resume must fit on ONE page (about 450 to 550 words). Keep 3 to 4 bullets for the newest role and 1 to 3 for older ones, drop the least relevant content instead of shrinking it, and never add anything that is not in the source resume.',
+        `HARD RULES for the tailored resume (follow every one, no exceptions): ${RULES_TEXT.join(' ')} Drop the least relevant content instead of shrinking it, and never add anything that is not in the source resume.`,
         'Return exactly one JSON object in a ```json fenced block with this schema:',
         '{"resume_markdown":"string","cover_letter":"string","alignment_summary":"string","keywords_used":[],"factual_changes":[],"missing_requirements":[],"submission_recommendation":"PASS|NEEDS_REVIEW"}',
         '', `JOB TITLE: ${job.title}`, `COMPANY: ${job.company || 'Not listed'}`,
@@ -513,7 +514,7 @@ async function syncApplication(row) {
             const tailored = parseLastJson(output);
             if (!tailored?.resume_markdown) throw new Error('Recruiter output was not valid structured resume JSON.');
             const reviewPrompt = [
-                'Independently audit this tailored resume for truthfulness, relevance, clarity, and ATS readability. It must fit on one page (about 550 words at most): fail it if it is longer.',
+                `Independently audit this tailored resume for truthfulness, relevance, clarity, and ATS readability. It must follow these resume rules: ${RULES_TEXT.join(' ')} Fail it if any rule is broken.`,
                 'Return exactly one JSON object in a ```json fenced block with this schema:',
                 '{"verdict":"PASS|FAIL","score":0,"unsupported_claims":[],"missing_requirements":[],"notes":"string"}',
                 '', 'SOURCE RESUME:', String(row.resume_text || '').slice(0, 24000),
@@ -896,17 +897,25 @@ const REWRITE_FAILED = 'Automatic rewrite failed';
 const applicationsBeingRewritten = new Set();
 // Hard rule: a resume is one page. Pages are measured with the same layout the PDF uses; the result is remembered per draft.
 const pageCache = new Map();
-function resumePagesOf(row) {
-    if (!row.tailored_resume) return null;
+function resumeFactsOf(row) {
+    if (!row.tailored_resume) return { pages: null, summaryLines: null };
     const key = `${row.id}:${row.resume_version}:${String(row.tailored_resume).length}`;
     if (!pageCache.has(key)) {
-        try { pageCache.set(key, pageCount(String(row.tailored_resume))); } catch (_) { pageCache.set(key, null); }
+        let facts = { pages: null, summaryLines: null };
+        try {
+            const markdown = String(row.tailored_resume);
+            const summary = (markdown.match(/^##\s+Summary\s*\n+([^\n]+)/mi) || [])[1];
+            facts = { pages: pageCount(markdown), summaryLines: summary ? paragraphLines(summary) : 0 };
+        } catch (_) { /* leave unknown */ }
+        pageCache.set(key, facts);
         if (pageCache.size > 5000) pageCache.delete(pageCache.keys().next().value);
     }
     return pageCache.get(key);
 }
-// Any application that has not been sent keeps to the one-page rule, including ones waiting on a login or a connector.
-const tooLong = row => ['ready_to_submit', 'action_required'].includes(row.status) && row.resumePages > 1 && !String(row.error || '').startsWith(REWRITE_FAILED);
+const resumePagesOf = row => resumeFactsOf(row).pages;
+// A draft breaks the resume rules when it runs past one page or its summary is longer than four lines.
+const withFacts = row => { const facts = resumeFactsOf(row); return { ...row, resumePages: facts.pages, resumeSummaryLines: facts.summaryLines }; };
+const tooLong = row => ['ready_to_submit', 'action_required'].includes(row.status) && (row.resumePages > 1 || row.resumeSummaryLines > RESUME_LIMITS.summaryLines) && !String(row.error || '').startsWith(REWRITE_FAILED);
 const needsRewrite = row => tooLong(row) || (row.status === 'needs_review' && !String(row.error || '').startsWith(REWRITE_FAILED))
     || (['tailoring', 'verifying'].includes(row.status) && Date.now() - new Date(row.updated_at).getTime() > REWRITE_AFTER_MINUTES * 60000 && !String(row.error || '').startsWith(REWRITE_FAILED));
 
@@ -915,12 +924,13 @@ async function autoRewriteApplications(username) {
     const rows = (await pool.query(
         `SELECT id,status,error,updated_at,quality_score,tailored_resume,resume_version FROM job_applications
          WHERE username=$1 AND status IN ('needs_review','tailoring','verifying','ready_to_submit','action_required') ORDER BY updated_at LIMIT 80`, [username]
-    )).rows.map(row => ({ ...row, resumePages: resumePagesOf(row) })).filter(row => needsRewrite(row) && !applicationsBeingRewritten.has(row.id) && !applicationsBeingSynced.has(row.id));
+    )).rows.map(withFacts).filter(row => needsRewrite(row) && !applicationsBeingRewritten.has(row.id) && !applicationsBeingSynced.has(row.id));
     let rewritten = 0;
     for (const row of rows) {
         applicationsBeingRewritten.add(row.id);
         try {
-            const reason = ['ready_to_submit', 'action_required'].includes(row.status) ? `its resume ran to ${row.resumePages} pages and a resume must be one page`
+            const reason = ['ready_to_submit', 'action_required'].includes(row.status)
+                ? (row.resumePages > 1 ? `its resume ran to ${row.resumePages} pages and a resume must be one page` : `its summary ran to ${row.resumeSummaryLines} lines and a summary must be at most ${RESUME_LIMITS.summaryLines}`)
                 : row.status === 'needs_review'
                     ? `Hagent's review${row.quality_score != null ? ` scored it ${row.quality_score}/100 and` : ''} asked for changes`
                     : 'Hagent had not finished it';
@@ -962,7 +972,7 @@ app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
     const processingOf = row => !['needs_review', 'tailoring', 'verifying'].includes(row.status) ? null
         : (applicationsBeingRewritten.has(row.id) || needsRewrite(row)) ? 'rewriting'
         : row.status === 'tailoring' || applicationsBeingSynced.has(row.id) ? 'preparing' : row.status === 'verifying' ? 'reviewing' : null;
-    const withPages = rows.map(row => ({ ...row, resumePages: resumePagesOf(row) }));
+    const withPages = rows.map(withFacts);
     const processingOfRow = row => (tooLong(row) && !applicationsBeingSynced.has(row.id)) ? 'rewriting' : processingOf(row);
     const withProcessing = withPages.map(row => ({ ...row, processing: processingOfRow(row) }));
     const scoring = !!careerOps?.isScoring(req.jobUsername);

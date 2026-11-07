@@ -848,6 +848,9 @@
             if (s.noActionVerb && s.noActionVerb.length) edits.push(`<div><strong>Start these lines with a strong verb</strong> such as Built, Reduced, Automated or Led:<ul>${quotedLines(s.noActionVerb)}</ul></div>`);
             if (s.firstPerson && s.firstPerson.length) edits.push(`<div><strong>Remove “I”, “my” and “we”</strong> from these lines:<ul>${quotedLines(s.firstPerson)}</ul></div>`);
             if (other.length) edits.push(`<div><strong>Also:</strong><ul>${other.map(issue => `<li>${escapeHtml(issue.text)} <em>${escapeHtml(issue.fix)}</em></li>`).join('')}</ul></div>`);
+            const covered = new Set(['numbers', 'action-verbs', 'no-first-person', 'one-page']);
+            const brokenRules = ((d.rules && d.rules.items) || []).filter(rule => !rule.ok && !covered.has(rule.id));
+            if (brokenRules.length) edits.push(`<div><strong>Resume rules not yet followed:</strong><ul>${brokenRules.map(rule => `<li>${escapeHtml(rule.title)} <span class="source-status">(${escapeHtml(rule.detail)})</span> <em>${escapeHtml(rule.fix || '')}</em>${rule.lines && rule.lines.length ? `<ul>${rule.lines.map(line => `<li class="source-status">${escapeHtml(line)}</li>`).join('')}</ul>` : ''}</li>`).join('')}</ul></div>`);
             const lost = (d.gains || []).map(g => `<li>${escapeHtml(g.group)}: ${escapeHtml(g.label)} <strong>−${Number(g.lost)}</strong> <span class="source-status">(${escapeHtml(g.detail)})</span></li>`).join('');
             return `<div class="improve-panel">
                 ${String(item.quality_notes || '').startsWith('{"source":"career-ops"') ? '' : `<div class="source-status">The ${Number(item.quality_score) || '?'}/100 on this row is Hagent's review score, a different measure. The ATS estimate below is what Career Ops can improve.</div>`}

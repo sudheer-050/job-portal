@@ -299,6 +299,11 @@ function layoutPages(markdown, reserve = 0) {
     return pages;
 }
 
+/** How many lines a paragraph takes in the PDF layout: body text across the full text width. */
+function paragraphLines(text) {
+    return wrapRuns(parseInline(text), PDF_STYLE.p, PAGE.width - PAGE.margin * 2).length;
+}
+
 /** How many pages the document takes. Used to hold a resume to one page. */
 function pageCount(markdown, { reserve = 0 } = {}) {
     return layoutPages(markdown, reserve).length;
@@ -365,4 +370,4 @@ function renderDocument({ markdown, format = 'md', baseName = 'document', title 
     return { buffer, contentType: spec.contentType, filename: `${name}.${spec.extension}` };
 }
 
-module.exports = { pageCount, FORMATS, HELVETICA, HELVETICA_BOLD, crc32, parseMarkdown, renderDocument, safeFilename, textWidth, toDocx, toPdf, toWinAnsi, zipStore };
+module.exports = { pageCount, paragraphLines, FORMATS, HELVETICA, HELVETICA_BOLD, crc32, parseMarkdown, renderDocument, safeFilename, textWidth, toDocx, toPdf, toWinAnsi, zipStore };
