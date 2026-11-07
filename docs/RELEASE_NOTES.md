@@ -13,6 +13,10 @@
 - **Applications:** every application is evaluated when it starts and shows its result.
 - **Action Center:** due and overdue follow-ups raise alerts.
 - New endpoints `POST /api/jobs/careerops/scan` and `GET /api/jobs/careerops/scores`.
+- **Skills analysis in Discover:** a "Why this score" panel on each scanned job card shows the skills you evidence and are missing, each requirement with your resume line as evidence, level and pay fit, and posting warnings.
+- **Tailor & apply works without Hagent:** Career Ops prepares a fact-checked, ATS-optimised resume and cover letter and leaves the application "ready to submit" for you to review and send. It is never submitted automatically.
+- **Apply & track tab:** apply to one job from start to finish (check, prepare, start, open the employer page, mark applied) with a follow-up reminder afterwards. New endpoint `POST /api/jobs/careerops/apply`.
+- Application rows from Career Ops show "ATS n/100" and link to the print-ready resume.
 
 ## Unreleased — Forgot password
 

@@ -77,17 +77,27 @@ test('only due and overdue follow-ups become alerts', () => {
 });
 
 // ---- Routes, with a stand-in database ----
-function fakePool({ resume = RESUME, jobs = [GOOD_JOB, SCAM_JOB], pipeline = [] } = {}) {
+function fakePool({ resume = RESUME, jobs = [GOOD_JOB, SCAM_JOB], pipeline = [], existingApplication = null } = {}) {
     const calls = [];
+    const rows = jobs.map(dbRow);
     return {
-        calls,
+        calls, rows,
         query: async (sql, params) => {
             calls.push({ sql: String(sql), params });
             const s = String(sql);
             if (s.includes('FROM job_profiles')) return { rows: [{ experience_years: 4, salary_min: 90000, salary_max: 130000, skills: 'Python, SQL, Tableau', full_name: 'Jordan Rivera', work_style: 'any' }] };
             if (s.includes('FROM job_roles')) return { rows: [{ role: 'Data Analyst' }] };
             if (s.includes('FROM resumes')) return { rows: resume ? [{ resume_text: resume }] : [] };
-            if (s.includes('FROM job_postings')) return { rows: jobs.filter(j => (params[0] || []).includes(j.id)).map(dbRow) };
+            if (s.includes('INSERT INTO job_postings')) {
+                rows.push({ id: params[0], source: 'manual', title: params[2], company: params[3], location: params[4], salary_min: params[5], salary_max: params[6], workplace_type: params[7], description: params[8], apply_url: params[9], posted_at: null, metadata: {}, active: true });
+                return { rows: [], rowCount: 1 };
+            }
+            if (s.includes('FROM job_postings')) {
+                const wanted = params[0];
+                return { rows: rows.filter(row => (Array.isArray(wanted) ? wanted.includes(row.id) : row.id === wanted)) };
+            }
+            if (s.includes('FROM job_applications WHERE username=$1 AND job_id=$2')) return { rows: existingApplication ? [existingApplication] : [] };
+            if (s.includes('INSERT INTO job_applications')) return { rows: [{ id: 7, job_id: params[1], status: params[2], quality_score: params[5], created_at: new Date() }], rowCount: 1 };
             if (s.includes('WITH ids AS')) return { rows: pipeline };
             if (s.includes('INSERT INTO job_notifications')) return { rows: [], rowCount: 1 };
             return { rows: [], rowCount: 0 };
@@ -95,12 +105,12 @@ function fakePool({ resume = RESUME, jobs = [GOOD_JOB, SCAM_JOB], pipeline = [] 
     };
 }
 
-async function startApp(pool) {
+async function startApp(pool, hooks) {
     const app = express();
     app.use(express.json());
     const requireAuth = (req, _res, next) => { req.jobUsername = 'jordan'; next(); };
     const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
-    const api = registerCareerOps(app, { pool, requireAuth, asyncRoute, ready: Promise.resolve(), env: {} });
+    const api = registerCareerOps(app, { pool, requireAuth, asyncRoute, ready: Promise.resolve(), env: {}, hooks });
     app.use((error, _req, res, _next) => res.status(500).json({ error: error.message }));
     const server = await new Promise(resolve => { const s = app.listen(0, () => resolve(s)); });
     const base = `http://127.0.0.1:${server.address().port}`;
@@ -182,5 +192,85 @@ test('syncAlerts raises one Action Center alert per due follow-up, and is thrott
         const before = pool.calls.length;
         assert.equal(await app.api.syncAlerts('jordan'), 0, 'second call inside the interval does nothing');
         assert.equal(pool.calls.length, before, 'and does not even query the database');
+    } finally { await app.close(); }
+});
+
+// ---- Submission: applications prepared by Career Ops ----
+const hookRecorder = () => {
+    const events = [], notifications = [];
+    return { events, notifications, hooks: { recordApplicationEvent: async (id, type, detail) => { events.push({ id, type, detail }); }, notifyUser: async (user, kind, title, body, link) => { notifications.push({ user, kind, title, body, link }); } } };
+};
+
+test('Career Ops prepares an application: fact-checked documents saved, ready for the user to review, never submitted', async () => {
+    const pool = fakePool();
+    const rec = hookRecorder();
+    const app = await startApp(pool, rec.hooks);
+    try {
+        const result = await app.api.createPreparedApplication('jordan', 'greenhouse:1');
+        assert.equal(result.application.status, 'ready_to_submit');
+        assert.equal(result.applyUrl, GOOD_JOB.applyUrl);
+        assert.ok(result.ats.score > 0 && result.summary.score >= 4);
+        const insert = pool.calls.find(c => c.sql.includes('INSERT INTO job_applications'));
+        const [username, jobId, status, resumeMd, coverLetter, qualityScore, verdict, notes] = insert.params;
+        assert.deepEqual([username, jobId, status, verdict], ['jordan', 'greenhouse:1', 'ready_to_submit', 'PASS']);
+        assert.match(resumeMd, /Jordan Rivera/);
+        assert.match(coverLetter, /Northwind/);
+        assert.equal(qualityScore, result.ats.score);
+        assert.equal(JSON.parse(notes).source, 'career-ops');
+        assert.ok(notes.startsWith('{"source":"career-ops"'), 'the UI recognises Career Ops applications by this prefix');
+        assert.ok(!insert.sql.includes('applied_at'), 'it must never be marked applied or submitted');
+        assert.equal(pool.calls.filter(c => c.sql.includes('UPDATE job_evaluations SET tailored')).length, 1, 'documents are stored with the evaluation');
+        assert.deepEqual(rec.events.map(e => e.type), ['created']);
+        assert.deepEqual(rec.notifications.map(item => item.kind), ['application_ready']);
+        assert.match(rec.notifications[0].body, /Review them, then open the employer page/);
+    } finally { await app.close(); }
+});
+
+test('preparing refuses clearly when the resume is missing, the job is gone, or it is already tracked', async () => {
+    const noResume = await startApp(fakePool({ resume: '' }), hookRecorder().hooks);
+    try { await assert.rejects(noResume.api.createPreparedApplication('jordan', 'greenhouse:1'), error => error.statusCode === 400 && /Upload your source resume/.test(error.message)); } finally { await noResume.close(); }
+    const gone = await startApp(fakePool(), hookRecorder().hooks);
+    try { await assert.rejects(gone.api.createPreparedApplication('jordan', 'nope:1'), error => error.statusCode === 404); } finally { await gone.close(); }
+    const dup = fakePool({ existingApplication: { id: 3, status: 'applied', job_id: 'greenhouse:1' } });
+    const tracked = await startApp(dup, hookRecorder().hooks);
+    try {
+        await assert.rejects(tracked.api.createPreparedApplication('jordan', 'greenhouse:1'), error => error.statusCode === 409 && error.application.id === 3);
+        assert.equal(dup.calls.filter(c => c.sql.includes('INSERT INTO job_applications')).length, 0);
+    } finally { await tracked.close(); }
+});
+
+test('POST /apply starts an application for a pasted job, saves it first, and needs the https link', async () => {
+    const pool = fakePool();
+    const app = await startApp(pool, hookRecorder().hooks);
+    const description = 'Requirements:\n- SQL and Python experience\n- Tableau dashboards\n' + 'Join our analytics team and support the whole business with reporting every week. '.repeat(3);
+    try {
+        const noUrl = await app.post('/api/jobs/careerops/apply', { title: 'Data Analyst', company: 'Contoso', description });
+        assert.equal(noUrl.status, 400);
+        assert.match((await noUrl.json()).error, /https link/);
+        const tooShort = await app.post('/api/jobs/careerops/apply', { title: 'x', description: 'short', url: 'https://jobs.example.com/1' });
+        assert.equal(tooShort.status, 400);
+        const http = await app.post('/api/jobs/careerops/apply', { title: 'Data Analyst', company: 'Contoso', description, url: 'http://insecure.example.com/1' });
+        assert.equal(http.status, 400, 'plain http links are refused');
+        assert.equal(pool.calls.filter(c => c.sql.includes('INSERT INTO job_postings')).length, 0, 'nothing is saved for a rejected request');
+
+        const ok = await app.post('/api/jobs/careerops/apply', { title: 'Data Analyst', company: 'Contoso', description, url: 'https://jobs.example.com/contoso/1' });
+        assert.equal(ok.status, 201);
+        const body = await ok.json();
+        assert.equal(body.application.status, 'ready_to_submit');
+        assert.match(body.application.job_id, /^manual:/);
+        assert.equal(body.applyUrl, 'https://jobs.example.com/contoso/1');
+        assert.equal(pool.calls.filter(c => c.sql.includes('INSERT INTO job_postings')).length, 1);
+    } finally { await app.close(); }
+});
+
+test('POST /apply for a saved job reports an existing application instead of creating a second', async () => {
+    const pool = fakePool({ existingApplication: { id: 9, status: 'ready_to_submit', job_id: 'greenhouse:1' } });
+    const app = await startApp(pool, hookRecorder().hooks);
+    try {
+        const res = await app.post('/api/jobs/careerops/apply', { jobId: 'greenhouse:1' });
+        assert.equal(res.status, 409);
+        const body = await res.json();
+        assert.equal(body.application.id, 9);
+        assert.match(body.error, /already in your application tracker/);
     } finally { await app.close(); }
 });

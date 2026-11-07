@@ -31,6 +31,12 @@ Career Ops is not a separate tool you have to remember to open. It runs inside t
 
 Scanning is deterministic and uses only your own resume and profile, so it is fast and costs nothing. Without an uploaded resume the toolbar asks you to upload one rather than scoring against nothing.
 
+### Skills analysis and submission
+
+- **Why this score:** every scanned job card has a **Why this score** link that opens the analysis in place: the skills you evidence, the ones you mention only once, the ones missing from your resume, each requirement with your own resume line as evidence, level and pay fit, and any posting warnings. Nothing to open in another tab.
+- **Applications prepared by Career Ops:** when Hagent is not configured, **Tailor & apply** no longer fails. Career Ops prepares the application: a fact-checked, ATS-optimised resume, a cover letter, and the evaluation. It waits as *ready to submit* for **you** to review and apply on the employer's site. It is never sent automatically. When Hagent is configured, nothing changes and Career Ops adds its evaluation alongside.
+- **Apply & track (the separate tab):** to apply to one job from start to finish, open Career Ops and follow **1. Evaluate → 2. Resume & cover letter → 3. Apply & track**. Step 3 checks the fit (a weak or suspicious job is stopped with the reason, and you can still start it), starts the application, links your documents and the employer page, and tracks it with **I applied**, after which a follow-up reminder appears in a week. Pasted jobs need the https link to the posting.
+
 ## Using it
 
 1. Upload your resume and complete your profile (years of experience, salary range, skills, sponsorship).

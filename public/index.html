@@ -240,8 +240,9 @@
                     <h2>Career Ops</h2>
                     <p class="hint">Deterministic, evidence-based job evaluation. Everything is built from your own resume and profile — nothing is invented and nothing is submitted for you.</p>
                     <div class="application-tabs" id="coTabs" role="tablist">
-                        <button type="button" class="btn btn-ghost active" data-co-tab="evaluate">Evaluate a job</button>
-                        <button type="button" class="btn btn-ghost" data-co-tab="resume">Resume &amp; cover letter</button>
+                        <button type="button" class="btn btn-ghost active" data-co-tab="evaluate">1. Evaluate</button>
+                        <button type="button" class="btn btn-ghost" data-co-tab="resume">2. Resume &amp; cover letter</button>
+                        <button type="button" class="btn btn-ghost" data-co-tab="apply">3. Apply &amp; track</button>
                         <button type="button" class="btn btn-ghost" data-co-tab="pipeline">Pipeline &amp; follow-ups</button>
                         <button type="button" class="btn btn-ghost" data-co-tab="insights">Insights</button>
                     </div>
@@ -807,11 +808,13 @@
             }
             applicationsContainer.innerHTML = shown.map(item => `
                 <div class="application-row">
-                    <div class="application-row-head"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.company || 'Company not listed')} &middot; ${escapeHtml(item.source || '')}</small></div><span class="application-status ${item.status === 'applied' ? 'applied' : ''}">${escapeHtml(item.status.replaceAll('_',' '))}${item.quality_score ? ` &middot; ${item.quality_score}/100` : ''}</span></div>
+                    <div class="application-row-head"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.company || 'Company not listed')} &middot; ${escapeHtml(item.source || '')}</small></div><span class="application-status ${item.status === 'applied' ? 'applied' : ''}">${escapeHtml(item.status.replaceAll('_',' '))}${item.quality_score ? ` &middot; ${String(item.quality_notes || '').startsWith('{"source":"career-ops"') ? 'ATS ' : ''}${item.quality_score}/100` : ''}</span></div>
                     ${item.coScore != null ? `<div class="source-status">Career Ops: <strong>${Number(item.coScore).toFixed(1)}/5</strong> &middot; ${escapeHtml(item.coVerdict || '')} &middot; ${escapeHtml(item.coTier || '')}${item.coCoverage != null ? ` &middot; CV match ${Number(item.coCoverage)}%` : ''} &middot; <a href="#careerops">Open Career Ops</a></div>` : ''}
                     ${item.error ? `<div class="error-msg" style="display:block">${escapeHtml(item.error)}</div>` : ''}
                     ${item.requires_login ? '<div class="source-status">Your login is required on the employer portal.</div>' : ''}
+                    ${String(item.quality_notes || '').startsWith('{"source":"career-ops"') ? '<div class="source-status">Prepared by Career Ops: resume and cover letter are drafts for you to review. Nothing is sent until you apply on the employer\x27s site.</div>' : ''}
                     <div class="application-actions">
+                        ${item.coHasResume ? `<a class="btn btn-ghost" href="/api/jobs/careerops/resume/${encodeURIComponent(item.job_id)}/html" target="_blank" rel="noopener">Print-ready resume</a>` : ''}
                         ${item.tailored_resume ? `<a class="btn btn-ghost" href="/api/jobs/applications/${item.id}/resume">Resume v${item.resume_version || 1}</a>` : ''}
                         ${item.cover_letter ? `<a class="btn btn-ghost" href="/api/jobs/applications/${item.id}/cover-letter">Cover letter v${item.cover_letter_version || 1}</a>` : ''}
                         <a class="btn btn-ghost" href="${escapeHtml(item.applyUrl)}" target="_blank" rel="noopener noreferrer">Open application / track</a>
@@ -868,10 +871,10 @@
             const button = event.target.closest('[data-tailor-job]');
             if (!button) return;
             button.disabled = true;
-            button.textContent = 'Sending to Hagent...';
+            button.textContent = 'Preparing…';
             try {
-                await api('/api/jobs/applications', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({jobId:button.dataset.tailorJob}) });
-                button.textContent = 'Hagent is preparing it';
+                const started = await api('/api/jobs/applications', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({jobId:button.dataset.tailorJob}) });
+                button.textContent = started.preparedBy === 'career-ops' ? 'Prepared — see Applications' : 'Hagent is preparing it';
                 loadApplications();
             } catch (err) {
                 button.disabled = false;

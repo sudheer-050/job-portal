@@ -65,7 +65,24 @@ function pastedJob(body) {
     };
 }
 
-function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = process.env, fetchImpl = fetch }) {
+// The shape returned by POST /resume and stored with the evaluation; also used to prepare applications.
+function buildPayload({ job, evaluation, built, ats, cover }) {
+    return {
+        jobId: job.id, job: { title: job.title, company: job.company },
+        score: evaluation.score, verdict: evaluation.verdict,
+        resume: { structured: built.tailored, markdown: renderMarkdown(built.tailored), html: renderHtml(built.tailored) },
+        coverLetter: cover, changes: built.changes, factCheck: built.factCheck, keywords: built.keywords, warnings: built.warnings,
+        appliedRewrites: built.appliedRewrites, rejectedRewrites: built.rejectedRewrites, ats,
+        generatedAt: new Date().toISOString(),
+    };
+}
+
+const HTTPS_URL = /^https:\/\/[^\s]+$/i;
+const httpError = (statusCode, message, extra = {}) => Object.assign(new Error(message), { statusCode, ...extra });
+
+function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = process.env, fetchImpl = fetch, hooks = {} }) {
+    const recordApplicationEvent = hooks.recordApplicationEvent || (async () => {});
+    const notifyUser = hooks.notifyUser || (async () => {});
     const outbound = rateLimit({ windowMs: 60 * 1000, limit: 12, standardHeaders: 'draft-7', legacyHeaders: false });
     const aiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 5, standardHeaders: 'draft-7', legacyHeaders: false });
     const scanLimiter = rateLimit({ windowMs: 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false });
@@ -199,14 +216,7 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         const built = optimized.best.built;
         const ats = { ...optimized.best.ats, target, reached: optimized.reached, rounds: optimized.rounds, explanation: optimized.explanation, aiUsed: optimized.aiUsed, aiError: optimized.aiError };
         const cover = buildCoverLetter({ resumeText, job, profile, requirements: evaluation.blocks.B.requirements });
-        const payload = {
-            jobId: job.id, job: { title: job.title, company: job.company },
-            score: evaluation.score, verdict: evaluation.verdict,
-            resume: { structured: built.tailored, markdown: renderMarkdown(built.tailored), html: renderHtml(built.tailored) },
-            coverLetter: cover, changes: built.changes, factCheck: built.factCheck, keywords: built.keywords, warnings: built.warnings,
-            appliedRewrites: built.appliedRewrites, rejectedRewrites: built.rejectedRewrites, ats,
-            generatedAt: new Date().toISOString(),
-        };
+        const payload = buildPayload({ job, evaluation, built, ats, cover });
         if (job.id) {
             await persist(req.jobUsername, job, evaluation);
             await pool.query('UPDATE job_evaluations SET tailored=$3::jsonb, updated_at=now() WHERE username=$1 AND job_id=$2', [req.jobUsername, job.id, JSON.stringify(payload)]);
@@ -371,7 +381,86 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         return created;
     }
 
-    return { evaluateJobForUser, schemaReady, syncAlerts };
+    // ---- Submission: applications prepared by Career Ops ----
+
+    // Evaluate, build the ATS-optimised fact-checked resume and the cover letter, and store them with the evaluation.
+    // Deterministic (no AI, no cost). The documents are drafts for the user to review; nothing is sent anywhere.
+    async function prepareDocuments(username, job, ctx) {
+        const evaluation = evaluateOffer({ job, profile: ctx.profile, roles: ctx.roles, resumeText: ctx.resumeText });
+        const optimized = await optimizeForAts({ resumeText: ctx.resumeText, job, profile: ctx.profile, target: 90 });
+        const built = optimized.best.built;
+        const ats = { ...optimized.best.ats, target: 90, reached: optimized.reached, rounds: optimized.rounds, explanation: optimized.explanation, aiUsed: false, aiError: null };
+        const cover = buildCoverLetter({ resumeText: ctx.resumeText, job, profile: ctx.profile, requirements: evaluation.blocks.B.requirements });
+        const payload = buildPayload({ job, evaluation, built, ats, cover });
+        await persist(username, job, evaluation);
+        await pool.query('UPDATE job_evaluations SET tailored=$3::jsonb, updated_at=now() WHERE username=$1 AND job_id=$2', [username, job.id, JSON.stringify(payload)]);
+        return { evaluation, payload, summary: summarizeEvaluation(job.id, evaluation), ats };
+    }
+
+    /**
+     * Start an application for a job without Hagent: Career Ops prepares the documents and the application waits,
+     * "ready to submit", for the user to review it and apply on the employer's site. It is never submitted automatically.
+     */
+    async function createPreparedApplication(username, jobId) {
+        await schemaReady;
+        const ctx = await context(username);
+        if (!ctx.resumeText) throw httpError(400, 'Upload your source resume before starting an application.');
+        const found = await pool.query('SELECT * FROM job_postings WHERE id=$1 AND active=true', [String(jobId || '')]);
+        if (!found.rows.length) throw httpError(404, 'That job is no longer available.');
+        const job = toJob(found.rows[0]);
+        const existing = await pool.query('SELECT id,status,job_id FROM job_applications WHERE username=$1 AND job_id=$2', [username, job.id]);
+        if (existing.rows.length) throw httpError(409, 'This job is already in your application tracker.', { application: existing.rows[0] });
+
+        const docs = await prepareDocuments(username, job, ctx);
+        const { payload, ats } = docs;
+        const status = payload.factCheck.ok ? 'ready_to_submit' : 'needs_review';
+        const notes = JSON.stringify({
+            source: 'career-ops',
+            jobFit: { score: payload.score, verdict: payload.verdict.label },
+            ats: { score: ats.score, target: ats.target, reached: ats.reached, explanation: ats.explanation },
+            changes: payload.changes, warnings: payload.warnings, notEvidenced: payload.keywords.notEvidenced,
+        });
+        let inserted;
+        try {
+            inserted = await pool.query(
+                `INSERT INTO job_applications (username,job_id,status,tailored_resume,cover_letter,quality_score,quality_verdict,quality_notes,requires_login)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false) RETURNING id,job_id,status,quality_score,created_at`,
+                [username, job.id, status, payload.resume.markdown, payload.coverLetter.text, ats.score, payload.factCheck.ok ? 'PASS' : 'REVIEW', notes]
+            );
+        } catch (error) {
+            if (error.code === '23505') throw httpError(409, 'This job is already in your application tracker.');
+            throw error;
+        }
+        const application = inserted.rows[0];
+        await recordApplicationEvent(application.id, 'created', `Prepared with Career Ops: fact-checked resume and cover letter (ATS ${ats.score}/100). Waiting for your review.`);
+        await notifyUser(username, 'application_ready', `Application ready: ${job.title}`,
+            `Career Ops prepared a fact-checked resume and cover letter (ATS ${ats.score}/100). Review them, then open the employer page to apply.`, '/jobs#applications');
+        return {
+            application, applyUrl: job.applyUrl, summary: docs.summary,
+            ats: { score: ats.score, target: ats.target, reached: ats.reached, explanation: ats.explanation },
+            verdict: payload.verdict, warnings: payload.warnings,
+        };
+    }
+
+    // Apply to one job from start to finish in the Career Ops tab: a saved job id, or a pasted posting with its https link.
+    app.post(`${BASE}/apply`, requireAuth, scanLimiter, asyncRoute(async (req, res) => {
+        await ready;
+        let jobId = req.body?.jobId ? String(req.body.jobId) : '';
+        if (!jobId) {
+            const pasted = pastedJob(req.body || {});
+            if (!pasted) return res.status(400).json({ error: 'Provide a job title and the full job description.' });
+            if (!HTTPS_URL.test(pasted.applyUrl)) return res.status(400).json({ error: 'Add the https link to the posting so you can open the employer application.' });
+            jobId = (await saveManualJob(pasted)).id;
+        }
+        try {
+            res.status(201).json(await createPreparedApplication(req.jobUsername, jobId));
+        } catch (error) {
+            if (!error.statusCode) throw error;
+            res.status(error.statusCode).json({ error: error.message, ...(error.application ? { application: error.application } : {}) });
+        }
+    }));
+
+    return { createPreparedApplication, evaluateJobForUser, schemaReady, syncAlerts };
 }
 
 module.exports = { SCHEMA, pastedJob, registerCareerOps, toJob };
