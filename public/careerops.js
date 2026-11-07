@@ -286,6 +286,7 @@
         busy(button, true, 'Optimising…');
         return call(API + '/resume', { method: 'POST', body: payload }).then(function (data) {
             state.resume = data;
+            if (data.propagated && window.portalRefresh) window.portalRefresh();
             if (data.jobId && !state.jobId) { state.jobId = data.jobId; }
             renderResume();
         }).catch(function (e) { showError(e.message); }).then(function () { busy(button, false); });

@@ -864,6 +864,12 @@
                 </div>`).join('');
         }
 
+        // Called after skills are added anywhere: bring every number on screen up to date.
+        window.portalRefresh = () => {
+            loadApplications();
+            loadDashboard();
+            if (typeof window.careerOpsRescan === 'function') window.careerOpsRescan();
+        };
         let applicationsRefresh = null;
         async function loadApplications() {
             clearTimeout(applicationsRefresh);
@@ -908,6 +914,7 @@
                 } catch (err) { appSkillMessages[jobId] = 'Could not add those skills: ' + err.message; }
                 await loadApplications();
                 loadDashboard();
+                if (typeof window.careerOpsRescan === 'function') window.careerOpsRescan();
                 return;
             }
             if (event.target.closest('[data-app-retry]')) { loadApplications(); return; }

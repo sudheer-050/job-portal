@@ -162,6 +162,13 @@
             .then(decorate);
     }
 
+    // Everything on the Discover list is scored again (used after skills are added anywhere).
+    window.careerOpsRescan = function () {
+        Object.keys(cache).forEach(function (key) { delete cache[key]; });
+        analysis = {};
+        if (cards().length) scan(true);
+    };
+
     function addSkills(button) {
         var id = button.dataset.cofAddskills;
         var panelEl = button.closest('.cof-panel');
@@ -176,7 +183,7 @@
             return ensureSummary(id).then(function () { return call(API + '/evaluations/' + encodeURIComponent(id)); }).then(function (data) { analysis[id] = data; });
         }).catch(function (error) {
             askMsg[id] = 'Could not add those skills: ' + error.message;
-        }).then(function () { refreshView(); scan(false); });
+        }).then(function () { refreshView(); scan(false); if (window.portalRefresh) window.portalRefresh(); });
     }
 
     recs.addEventListener('click', function (event) {

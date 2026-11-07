@@ -10,7 +10,7 @@ const { aiConfig, suggestRewrites } = require('./rewrite');
 const { optimizeForAts } = require('./ats');
 const { applyConfirmedSkills } = require('./confirm');
 const { mergeSkills } = require('../profile/sources');
-const { rememberedUsedFor } = require('./remembered');
+const { acceptBulkSkills, rememberedUsedFor, visibleGaps } = require('./remembered');
 const { alertsFromPipeline, summarizeEvaluation, summaryFromRow } = require('./flow');
 const { analyzePatterns, canonicalState, nextFollowUp } = require('./tracker');
 
@@ -266,6 +266,7 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
             await persist(req.jobUsername, job, evaluation);
             await pool.query('UPDATE job_evaluations SET tailored=$3::jsonb, updated_at=now() WHERE username=$1 AND job_id=$2', [req.jobUsername, job.id, JSON.stringify(payload)]);
         }
+        if (stated.confirmed.length) payload.propagated = await propagateSkills(req.jobUsername);
         res.json(payload);
     }));
 
@@ -542,12 +543,13 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
 
     // Replace the draft of an application that is stuck or failed Hagent's review with a Career Ops one.
     // The new resume must pass the same fact check as any other; otherwise nothing changes.
-    async function rewriteApplication(username, applicationId, reason = 'it needed a rewrite') {
+    async function rewriteApplication(username, applicationId, reason = 'it needed a rewrite', { includeReady = false } = {}) {
         await schemaReady;
         const found = await pool.query('SELECT id,job_id,status,quality_score FROM job_applications WHERE id=$1 AND username=$2', [applicationId, username]);
         const row = found.rows[0];
         if (!row) throw httpError(404, 'Application not found.');
-        if (!['needs_review', 'tailoring', 'verifying'].includes(row.status)) throw httpError(409, 'Only applications that are being prepared or need review can be rewritten.');
+        const rewritable = includeReady ? ['needs_review', 'tailoring', 'verifying', 'ready_to_submit'] : ['needs_review', 'tailoring', 'verifying'];
+        if (!rewritable.includes(row.status)) throw httpError(409, 'Only applications that are being prepared or need review can be rewritten.');
         const ctx = await context(username);
         if (!ctx.resumeText) throw httpError(400, 'Upload your source resume first.');
         const posting = await pool.query('SELECT * FROM job_postings WHERE id=$1', [row.job_id]);
@@ -566,13 +568,100 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
             `UPDATE job_applications SET status='ready_to_submit', tailored_resume=$3, cover_letter=$4,
                     resume_version=resume_version+1, cover_letter_version=cover_letter_version+1,
                     quality_score=$5, quality_verdict='PASS', quality_notes=$6, error=NULL, updated_at=now()
-             WHERE id=$1 AND username=$2 AND status IN ('needs_review','tailoring','verifying') RETURNING id,job_id,status`,
-            [applicationId, username, payload.resume.markdown, payload.coverLetter.text, ats.score, notes]
+             WHERE id=$1 AND username=$2 AND status = ANY($7::text[]) RETURNING id,job_id,status`,
+            [applicationId, username, payload.resume.markdown, payload.coverLetter.text, ats.score, notes, rewritable]
         );
         if (!updated.rows.length) throw httpError(409, 'The application changed while it was being rewritten.');
         await recordApplicationEvent(applicationId, 'auto_rewritten', `Rewritten with Career Ops (ATS ${ats.score}/100) because ${reason}. Waiting for your review.`);
         return { application: updated.rows[0], ats: { score: ats.score, reached: ats.reached }, title: job.title };
     }
+
+    // Score every job the person has already looked at again, after what Career Ops knows about them changed.
+    async function reevaluateAll(username, limit = 300) {
+        const ctx = await context(username);
+        if (!ctx.resumeText) return { jobs: 0 };
+        const rows = (await pool.query(
+            `SELECT p.*, e.coverage AS prev_coverage, e.score::float AS prev_score FROM job_evaluations e
+             JOIN job_postings p ON p.id=e.job_id WHERE e.username=$1 ORDER BY e.updated_at DESC LIMIT $2`, [username, limit]
+        )).rows;
+        let before = 0, after = 0, scoreBefore = 0, scoreAfter = 0;
+        for (const row of rows) {
+            try {
+                const evaluation = evaluateOffer({ job: toJob(row), profile: ctx.profile, roles: ctx.roles, resumeText: ctx.resumeText });
+                await persist(username, toJob(row), evaluation);
+                before += Number(row.prev_coverage) || 0; after += evaluation.meta.coverage;
+                scoreBefore += row.prev_score || 0; scoreAfter += evaluation.score;
+            } catch (error) { console.error('re-evaluation failed for one job:', error.message); }
+        }
+        const n = rows.length || 1;
+        return {
+            jobs: rows.length,
+            coverage: { before: Math.round(before / n), after: Math.round(after / n) },
+            fit: { before: Math.round(scoreBefore / n * 10) / 10, after: Math.round(scoreAfter / n * 10) / 10 },
+        };
+    }
+
+    // Keywords many of the person's jobs ask for that their resume does not show, most common first.
+    async function gapRows(username) {
+        const result = await pool.query(
+            `SELECT lower(term) AS key, min(term) AS skill, count(*)::int AS jobs
+             FROM job_evaluations e, jsonb_array_elements_text(e.missing) AS term
+             WHERE e.username=$1 GROUP BY lower(term) ORDER BY jobs DESC, key LIMIT 120`, [username]
+        );
+        return result.rows;
+    }
+
+    app.get(`${BASE}/skill-gaps`, requireAuth, asyncRoute(async (req, res) => {
+        const ctx = await context(req.jobUsername);
+        const gaps = visibleGaps({ rows: await gapRows(req.jobUsername), resumeText: ctx.resumeText, profileSkills: ctx.profile.skills || '' }).slice(0, 25);
+        const total = await pool.query('SELECT count(*)::int AS n, round(avg(coverage))::int AS coverage FROM job_evaluations WHERE username=$1', [req.jobUsername]);
+        res.json({ gaps, jobs: total.rows[0].n, averageCoverage: total.rows[0].coverage });
+    }));
+
+    // "I have these": confirm several skills at once, then score everything again.
+    app.post(`${BASE}/skills/bulk`, requireAuth, scanLimiter, asyncRoute(async (req, res) => {
+        const ctx = await context(req.jobUsername);
+        if (!ctx.resumeText) return res.status(400).json({ error: 'Upload your source resume first.' });
+        const allowed = new Map(visibleGaps({ rows: await gapRows(req.jobUsername), resumeText: ctx.resumeText, profileSkills: ctx.profile.skills || '' }).map(gap => [gap.skill.toLowerCase(), gap.skill]));
+        const { accepted, rejected } = acceptBulkSkills({ requested: req.body?.skills, allowed });
+        if (rejected.length) return res.status(400).json({ error: `These are not skills your jobs ask for: ${rejected.join(', ')}.` });
+        if (!accepted.length) return res.status(400).json({ error: 'Tick at least one skill you genuinely have.' });
+        await pool.query(
+            `INSERT INTO job_confirmed_skills (username, skill_key, skill, job_id)
+             SELECT $1, lower(s), s, NULL FROM unnest($2::text[]) AS s ON CONFLICT (username, skill_key) DO NOTHING`,
+            [req.jobUsername, accepted]
+        );
+        res.json({ added: accepted, ...(await propagateSkills(req.jobUsername)) });
+    }));
+
+    // Rebuild the drafts that have not been sent yet, so they use everything Career Ops now knows.
+    async function refreshDrafts(username) {
+        const rows = (await pool.query(
+            `SELECT id, status, quality_score FROM job_applications WHERE username=$1
+             AND (status IN ('needs_review','tailoring','verifying') OR (status='ready_to_submit' AND quality_notes LIKE '{"source":"career-ops"%'))
+             ORDER BY updated_at DESC LIMIT 60`, [username]
+        )).rows;
+        let refreshed = 0, failed = 0, before = 0, after = 0;
+        for (const row of rows) {
+            try {
+                const done = await rewriteApplication(username, row.id, 'your confirmed skills changed', { includeReady: true });
+                refreshed += 1; before += row.quality_score || 0; after += done.ats.score;
+            } catch (error) { failed += 1; }
+        }
+        return { refreshed, failed, ats: refreshed ? { before: Math.round(before / refreshed), after: Math.round(after / refreshed) } : null };
+    }
+
+    // When what Career Ops knows about the person changes, every score is brought up to date in one go:
+    // all scored jobs, and every draft that has not been sent.
+    async function propagateSkills(username) {
+        const rescored = await reevaluateAll(username);
+        const drafts = await refreshDrafts(username);
+        return { rescored, drafts };
+    }
+
+    app.post(`${BASE}/refresh-drafts`, requireAuth, scanLimiter, asyncRoute(async (req, res) => {
+        res.json(await refreshDrafts(req.jobUsername));
+    }));
 
     return { createPreparedApplication, rewriteApplication, dashboardStats, evaluateJobForUser, rememberedSkills: async username => (await rememberedSkills(username)).map(item => item.skill), schemaReady, syncAlerts };
 }

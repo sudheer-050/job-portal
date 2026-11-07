@@ -18,4 +18,27 @@ function rememberedUsedFor({ remembered = [], job = {}, resumeText = '', confirm
     });
 }
 
-module.exports = { rememberedUsedFor };
+/**
+ * Skills many of the person's jobs ask for that neither their resume nor their profile shows.
+ * `rows` are aggregated {key, skill, jobs}; old evaluations may still list a skill that has since been added.
+ */
+function visibleGaps({ rows = [], resumeText = '', profileSkills = '' }) {
+    const have = `${resumeText}\n${profileSkills}`;
+    return rows.filter(row => row.key && !countTerm(have, row.key)).map(row => ({ skill: row.skill, jobs: row.jobs }));
+}
+
+/** Split a bulk request into the skills that really are gaps for this person and the ones that are not. */
+function acceptBulkSkills({ requested, allowed }) {
+    const accepted = [];
+    const rejected = [];
+    for (const raw of Array.isArray(requested) ? requested.slice(0, 80) : []) {
+        const name = String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+        if (!name) continue;
+        const skill = allowed.get(name.toLowerCase());
+        if (!skill) rejected.push(name);
+        else if (!accepted.includes(skill)) accepted.push(skill);
+    }
+    return { accepted: accepted.slice(0, 40), rejected };
+}
+
+module.exports = { acceptBulkSkills, rememberedUsedFor, visibleGaps };

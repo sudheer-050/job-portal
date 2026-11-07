@@ -8,7 +8,7 @@
     var panel = document.getElementById('srcPanel');
     if (!card || !panel) return;
 
-    var state = { settings: null, counts: null, findings: [], skills: [], message: '', error: '', busy: false, started: false };
+    var state = { settings: null, counts: null, findings: [], skills: [], gaps: null, message: '', error: '', busy: false, started: false };
     var KIND_LABEL = { project: 'Projects', experience: 'Experience', education: 'Education', certification: 'Certifications', skill: 'Skills' };
     var SOURCE_LABEL = { github: 'GitHub', portfolio: 'Portfolio', linkedin: 'LinkedIn' };
 
@@ -66,6 +66,7 @@
             '<p class="src-status">Last checked: ' + esc(when(s.lastCheckedAt)) + ' — ' + esc(resultLine(s.lastResult)) + '</p>' +
             (state.error ? '<div class="co-error" role="alert">' + esc(state.error) + '</div>' : '') +
             (state.message ? '<div class="src-ok" role="status">' + esc(state.message) + '</div>' : '') +
+            gapsBlock() +
             '<div class="src-review"><h3>Skills you have confirmed' + (state.skills.length ? ' (' + state.skills.length + ')' : '') + '</h3>' +
             (state.skills.length ? '<p class="src-note">When a job asks for a skill your resume lacks and you say you have it, Career Ops remembers it and uses it for every later job that asks. Remove any that are not true.</p><div class="src-actions">' + state.skills.map(function (s) { return '<span class="cof-pill ok">' + esc(s.skill) + ' <button type="button" class="link-btn" data-src-forget="' + esc(s.skill) + '" aria-label="Remove ' + esc(s.skill) + '">remove</button></span>'; }).join(' ') + '</div>' : '<p class="src-note">None yet. They appear here when you confirm a missing skill on a job.</p>') + '</div>' +
             '<div class="src-review"><h3>' + (state.findings.length ? state.findings.length + ' new item' + (state.findings.length === 1 ? '' : 's') + ' to review' : 'Nothing new to review') + '</h3>' +
@@ -74,8 +75,30 @@
             '</div>';
     }
 
+    // The skills most of your jobs ask for that your resume does not show. Tick the ones you really have and every score is recalculated.
+    function gapsBlock() {
+        var g = state.gaps;
+        if (!g || !g.jobs) return '';
+        var rescored = state.rescored;
+        var out = '<div class="src-review"><h3>Raise your scores across all your jobs</h3>';
+        if (!g.gaps.length) {
+            out += '<p class="src-note">Nothing common is missing: no skill is asked for by your jobs that your resume and profile do not already show (' + esc(g.jobs) + ' jobs checked, average CV match ' + esc(g.averageCoverage) + '%).</p>';
+        } else {
+            out += '<p class="src-note">Across your ' + esc(g.jobs) + ' scored jobs the average CV match is ' + esc(g.averageCoverage) + '%. These skills are asked for most often and are not in your resume. Tick the ones you <strong>genuinely have</strong> and every job is re-scored. Nothing is ticked for you, and scores only rise as far as the truth allows.</p>' +
+                '<div class="src-actions">' + g.gaps.map(function (gap) {
+                    return '<label class="co-check co-skillpick"><input type="checkbox" data-src-gap="' + esc(gap.skill) + '"> ' + esc(gap.skill) + ' <span class="cof-note">' + esc(gap.jobs) + ' job' + (gap.jobs === 1 ? '' : 's') + '</span></label>';
+                }).join(' ') + '</div>' +
+                '<div class="src-actions"><button type="button" class="btn btn-primary" id="srcAddGaps">I have these — add and re-score</button></div>';
+        }
+        if (rescored) out += '<div class="src-ok" role="status">' + esc(rescored) + '</div>';
+        out += '<div class="src-actions"><button type="button" class="btn btn-ghost" id="srcRefreshDrafts">Refresh my unsent applications with my skills</button></div>' +
+            '<p class="src-note">This rebuilds drafts that have not been sent so their resumes use what you confirmed. Nothing is submitted.</p></div>';
+        return out;
+    }
+
     function load() {
-        return Promise.all([call(API), call(API + '/findings'), call('/api/jobs/careerops/skills').catch(function () { return { skills: [] }; })]).then(function (r) {
+        return Promise.all([call(API), call(API + '/findings'), call('/api/jobs/careerops/skills').catch(function () { return { skills: [] }; }), call('/api/jobs/careerops/skill-gaps').catch(function () { return null; })]).then(function (r) {
+            state.gaps = r[3];
             state.settings = r[0].settings; state.counts = r[0].counts; state.findings = r[1].findings; state.skills = r[2].skills || []; render();
         }).catch(function (error) { state.error = error.message; render(); });
     }
@@ -111,6 +134,29 @@
     panel.addEventListener('click', function (event) {
         var button = event.target.closest('button');
         if (!button) return;
+        if (button.id === 'srcAddGaps') {
+            var picked = [].slice.call(panel.querySelectorAll('input[data-src-gap]:checked')).map(function (box) { return box.dataset.srcGap; });
+            if (!picked.length) { state.error = 'Tick at least one skill you genuinely have.'; state.message = ''; render(); return; }
+            run(button, 'Re-scoring…', function () {
+                return call('/api/jobs/careerops/skills/bulk', { method: 'POST', body: { skills: picked } }).then(function (r) {
+                    var s = r.rescored || {};
+                    var d = r.drafts || {};
+                    state.rescored = 'Added ' + r.added.join(', ') + '. Everything was re-scored.' + (s.jobs ? ' Average CV match across ' + s.jobs + ' jobs: ' + s.coverage.before + '% → ' + s.coverage.after + '%; average job fit: ' + s.fit.before + ' → ' + s.fit.after + '/5.' : '') + (d.refreshed ? ' ' + d.refreshed + ' unsent application' + (d.refreshed === 1 ? '' : 's') + ' rebuilt (average ATS ' + d.ats.before + ' → ' + d.ats.after + ').' : '');
+                    if (window.portalRefresh) window.portalRefresh();
+                    return 'Done. Your jobs, applications and dashboard are updated.';
+                });
+            });
+            return;
+        }
+        if (button.id === 'srcRefreshDrafts') {
+            run(button, 'Refreshing…', function () {
+                return call('/api/jobs/careerops/refresh-drafts', { method: 'POST' }).then(function (r) {
+                    if (window.portalRefresh) window.portalRefresh();
+                    return r.refreshed ? r.refreshed + ' unsent application' + (r.refreshed === 1 ? '' : 's') + ' rebuilt (average ATS ' + r.ats.before + ' → ' + r.ats.after + ')' + (r.failed ? '; ' + r.failed + ' could not be rebuilt' : '') + '.' : 'No unsent applications to refresh.';
+                });
+            });
+            return;
+        }
         if (button.dataset.srcForget) {
             run(button, 'Removing…', function () {
                 return call('/api/jobs/careerops/skills/' + encodeURIComponent(button.dataset.srcForget), { method: 'DELETE' }).then(function () { return 'Removed. Future jobs will no longer use it.'; });
