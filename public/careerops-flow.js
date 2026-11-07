@@ -15,6 +15,9 @@
     var cache = {};          // jobId -> summary from the server
     var analysis = {};       // jobId -> full evaluation (loaded when "Why this score" is opened)
     var open = {};           // jobId -> analysis panel is open
+    var askOpen = {};        // jobId -> the missing-skills question is expanded
+    var askMsg = {};         // jobId -> last result of adding skills
+    var COVERAGE_TARGET = 95; // below this CV match the panel offers to add skills the person really has
     var scanTimer = null;
     var scanning = false;
     var lastStatus = '';
@@ -106,6 +109,24 @@
     function statusPill(status) { return status === 'match' ? '<span class="cof-pill ok">Match</span>' : status === 'partial' ? '<span class="cof-pill warn">Partial</span>' : status === 'gap' ? '<span class="cof-pill bad">Gap</span>' : '<span class="cof-pill">Check</span>'; }
     function chips(items, kind) { return items.length ? '<div class="cof-chips">' + items.map(function (i) { return '<span class="cof-pill ' + kind + '">' + esc(i.term) + '</span>'; }).join('') + '</div>' : '<p class="cof-note">None</p>'; }
 
+    // CV match below the target: let the person see what is missing and say which of it they really have.
+    function skillsAsk(data, b) {
+        var id = data.jobId;
+        var coverage = data.evaluation && data.evaluation.meta ? data.evaluation.meta.coverage : null;
+        var missing = b.B.missing || [];
+        var msg = askMsg[id] ? '<p class="cof-note" role="status">' + esc(askMsg[id]) + '</p>' : '';
+        if (coverage === null || coverage >= COVERAGE_TARGET || !missing.length) return msg;
+        var html = '<div class="cof-ask"><h4>CV match is ' + esc(coverage) + '% — aim for ' + COVERAGE_TARGET + '%</h4>' + msg +
+            '<button type="button" class="btn btn-ghost btn-small" data-cof-viewmissing="' + esc(id) + '" aria-expanded="' + (askOpen[id] ? 'true' : 'false') + '">' + (askOpen[id] ? 'Hide missing skills' : 'View missing skills (' + missing.length + ')') + '</button>';
+        if (askOpen[id]) {
+            html += '<div class="cof-ask-body"><p class="cof-note">Do you actually have any of these? Tick only the ones you genuinely do. They are added to your Skills section (never to your job history), your ATS score and CV match go up, and nothing is ticked for you.</p><div class="cof-chips">' +
+                missing.map(function (m) { return '<label class="co-check co-skillpick"><input type="checkbox" data-cof-skill="' + esc(m.term) + '"> ' + esc(m.term) + '</label>'; }).join('') + '</div>' +
+                '<label class="co-check"><input type="checkbox" data-cof-save checked> Also save them to my profile skills so every resume and application uses them</label>' +
+                '<div class="cof-actions"><button type="button" class="btn btn-primary btn-small" data-cof-addskills="' + esc(id) + '">Add ticked skills to my resume</button></div></div>';
+        }
+        return html + '</div>';
+    }
+
     function analysisHtml(data, s) {
         var b = data.evaluation.blocks;
         var A = b.A || {}, C = b.C || {}, E = b.E || {}, F = b.F || {};
@@ -126,7 +147,7 @@
             '<h4>Skills you evidence</h4>' + chips(b.B.present, 'ok') +
             '<h4>Mentioned only once</h4>' + chips(b.B.thin, 'warn') +
             '<h4>Not in your resume</h4>' + chips(b.B.missing, 'bad') +
-            (b.B.missing.length ? '<p class="cof-note">Do you actually have any of these? Say so and Career Ops will add them to your Skills and raise your ATS score. <button type="button" class="btn btn-ghost btn-small" data-co-evaluate="' + esc(data.jobId) + '" data-co-open="resume">I have some of these</button></p>' : '') +
+            skillsAsk(data, b) +
             (reqs ? '<h4>Requirements</h4><ul class="cof-list">' + reqs + '</ul>' : '') +
             '<h4>Fit</h4><ul class="cof-list"><li>Level: job is <strong>' + esc(b.C.jdLevel) + '</strong>, you are <strong>' + esc(b.C.yourLevel) + '</strong> (' + esc(String(b.C.fit).replace('-', ' ')) + ').</li><li>Pay: ' + esc(b.D.summary) + '</li>' + (C.plan ? '<li>Approach: ' + esc(C.plan) + '</li>' : '') + '</ul>' + feature + honest + ask +
             (signals ? '<h4>Posting signals</h4><ul class="cof-list">' + signals + '</ul>' : '') +
@@ -142,7 +163,29 @@
             .then(decorate);
     }
 
+    function addSkills(button) {
+        var id = button.dataset.cofAddskills;
+        var panelEl = button.closest('.cof-panel');
+        var ticked = [].slice.call(panelEl.querySelectorAll('input[data-cof-skill]:checked')).map(function (box) { return box.dataset.cofSkill; });
+        var save = panelEl.querySelector('input[data-cof-save]');
+        if (!ticked.length) { askMsg[id] = 'Tick at least one skill you genuinely have.'; decorate(); return; }
+        button.disabled = true;
+        button.textContent = 'Adding…';
+        call(API + '/resume', { method: 'POST', body: { jobId: id, targetScore: 90, confirmedSkills: ticked, saveToProfile: !save || save.checked } }).then(function (built) {
+            askMsg[id] = 'Added ' + ticked.join(', ') + '. CV match is now ' + built.coverage + '% and the ATS score is ' + built.ats.score + '/100.' + (save && !save.checked ? '' : ' Saved to your profile.');
+            delete cache[id];
+            delete analysis[id];
+            return ensureSummary(id).then(function () { return call(API + '/evaluations/' + encodeURIComponent(id)); }).then(function (data) { analysis[id] = data; });
+        }).catch(function (error) {
+            askMsg[id] = 'Could not add those skills: ' + error.message;
+        }).then(function () { askOpen[id] = !!askOpen[id]; refreshView(); });
+    }
+
     recs.addEventListener('click', function (event) {
+        var viewMissing = event.target.closest('[data-cof-viewmissing]');
+        if (viewMissing) { var vid = viewMissing.dataset.cofViewmissing; askOpen[vid] = !askOpen[vid]; decorate(); return; }
+        var addBtn = event.target.closest('[data-cof-addskills]');
+        if (addBtn) { addSkills(addBtn); return; }
         var why = event.target.closest('[data-cof-why]');
         if (why) { toggleAnalysis(why.dataset.cofWhy); return; }
         var full = event.target.closest('[data-cof-full]');
