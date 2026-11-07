@@ -154,3 +154,7 @@
 .job-flag.new { color: var(--accent-brand-ink); background: var(--accent-brand-soft); }
 .job-flag.applied { color: var(--accent-green); background: var(--accent-green-soft); }
 .job-flag.working { color: var(--accent-amber); background: var(--accent-amber-soft); }
+
+/* ---- Confirm missing skills ---- */
+.co-skillpick { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border-color-soft); border-radius: 999px; background: #fff; font-size: 13px; cursor: pointer; }
+.co-skillpick:has(input:checked) { border-color: var(--accent-brand); background: var(--accent-brand-soft); }

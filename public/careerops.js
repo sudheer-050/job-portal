@@ -8,7 +8,7 @@
     if (!card || !panel || !tabs) return;
 
     var state = { tab: 'evaluate', jobId: '', draft: {}, evaluation: null, resume: null, savedJobs: [], pipeline: [], started: false, extra: null,
-        ai: null, suggestions: null, target: 90, aiConsent: false, application: null };
+        ai: null, suggestions: null, target: 90, aiConsent: false, application: null, confirmed: [], saveSkills: true };
 
     function esc(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
@@ -214,9 +214,28 @@
         return out;
     }
 
+    // Ask, never assume: skills the job wants but the resume does not show are listed unticked, and only
+    // the ones the person ticks are added (to Skills only) before rebuilding.
+    function skillsAskHtml(r) {
+        var missing = (r.ats && r.ats.keywords && r.ats.keywords.missing) || [];
+        var done = r.confirmedSkills || [];
+        var out = '';
+        if (done.length) out += '<div class="co-card"><h4>Skills you confirmed</h4><div class="co-chips">' + done.map(function (s) { return chip(s, 'ok'); }).join('') + '</div><p class="co-note">Added to the Skills section at your request. They are not added to your job history.</p></div>';
+        if (!missing.length) return out;
+        out += '<div class="co-card" id="coSkillsAsk"><h4>Do you have any of these skills?</h4>' +
+            '<p>This job asks for skills your resume does not show. If you genuinely have some of them, tick them and Career Ops will add them to your Skills section and rebuild, which can raise your ATS score.</p>' +
+            '<div class="co-chips" style="margin:8px 0">' + missing.map(function (term) {
+                return '<label class="co-check co-skillpick"><input type="checkbox" data-skill="' + esc(term) + '"> ' + esc(term) + '</label>';
+            }).join('') + '</div>' +
+            '<p class="co-note">Only tick a skill you could talk about in an interview. Your answer is treated as your own statement; Career Ops never ticks anything for you and never writes these into your job history.</p>' +
+            '<label class="co-check"><input type="checkbox" id="coSaveSkills"' + (state.saveSkills ? ' checked' : '') + '> Also save the ticked skills to my profile so future resumes and applications use them</label>' +
+            '<div class="co-row"><button type="button" class="btn btn-primary" id="coConfirmSkills">Add ticked skills &amp; rebuild</button></div></div>';
+        return out;
+    }
+
     function renderResumeOut(r) {
         var ok = r.factCheck.ok;
-        var html = atsHtml(r.ats) + '<div class="co-hero"><div class="co-score ' + scoreClass(r.score) + '"><strong>' + r.score.toFixed(1) + '</strong><span>job fit</span></div><div class="co-verdict"><h3>' + esc(r.verdict.label) + '</h3><p>' + esc(r.verdict.text) + '</p>' +
+        var html = atsHtml(r.ats) + skillsAskHtml(r) + '<div class="co-hero"><div class="co-score ' + scoreClass(r.score) + '"><strong>' + r.score.toFixed(1) + '</strong><span>job fit</span></div><div class="co-verdict"><h3>' + esc(r.verdict.label) + '</h3><p>' + esc(r.verdict.text) + '</p>' +
             '<div class="co-chips">' + chip(ok ? 'Fact check passed' : 'Fact check failed', ok ? 'ok' : 'bad') + (r.keywords.featured.length ? chip('Featured: ' + r.keywords.featured.join(', '), 'brand') : '') + '</div></div></div>';
         if (!ok) html += '<div class="co-card"><h4>Lines not found in your source resume</h4>' + list(r.factCheck.unsupported.map(function (u) { return u.where + ': ' + u.line; })) + '</div>';
         if (r.warnings.length) html += '<div class="co-card"><h4>Notes</h4>' + list(r.warnings) + '</div>';
@@ -262,6 +281,7 @@
         var payload = jobPayload();
         payload.targetScore = state.target;
         payload.aiConsent = state.aiConsent;
+        if (state.confirmed.length) { payload.confirmedSkills = state.confirmed; payload.saveToProfile = state.saveSkills; }
         if (withWording) payload.rewrites = acceptedRewrites();
         busy(button, true, 'Optimising…');
         return call(API + '/resume', { method: 'POST', body: payload }).then(function (data) {
@@ -421,7 +441,7 @@
         if (event.target.id !== 'coJob') return;
         readDraft();
         state.jobId = event.target.value;
-        state.evaluation = null; state.resume = null; state.application = null;
+        state.evaluation = null; state.resume = null; state.application = null; state.confirmed = [];
         if (state.tab === 'resume') renderResume(); else if (state.tab === 'apply') renderApply(); else renderEvaluate();
     });
 
@@ -436,6 +456,14 @@
         else if (t.id === 'coMarkApplied') markApplied(t);
         else if (t.id === 'coGoApply') { readDraft(); setTab('apply'); }
         else if (t.id === 'coBuildBtn') runBuild(t, false);
+        else if (t.id === 'coConfirmSkills') {
+            var ticked = [].slice.call(panel.querySelectorAll('input[data-skill]:checked')).map(function (box) { return box.dataset.skill; });
+            var save = document.getElementById('coSaveSkills');
+            state.saveSkills = !save || save.checked;
+            if (!ticked.length) { showError('Tick at least one skill you genuinely have, or leave the list as it is.'); return; }
+            ticked.forEach(function (skill) { if (state.confirmed.indexOf(skill) < 0) state.confirmed.push(skill); });
+            runBuild(t, false);
+        }
         else if (t.id === 'coRebuildWording') runBuild(t, true);
         else if (t.id === 'coPreviewAi') {
             readBuildOptions(); showError('');
@@ -473,12 +501,16 @@
         var heading = cardEl && cardEl.querySelector('h3, h2, .job-title');
         state.jobId = b.dataset.coEvaluate;
         state.extra = { id: state.jobId, label: heading ? heading.textContent.trim() : 'Selected job' };
-        state.evaluation = null; state.resume = null; state.tab = 'evaluate';
+        var openResume = b.dataset.coOpen === 'resume';
+        state.evaluation = null; state.resume = null; state.confirmed = []; state.tab = openResume ? 'resume' : 'evaluate';
         var nav = document.querySelector('[data-workspace-target="careerops"]');
         if (nav) nav.click();
         state.started = true;
         call(API + '/ai').then(function (d) { state.ai = d; }).catch(function () { state.ai = { configured: false }; })
-            .then(loadJobs).then(function () { setTab('evaluate'); var btn = document.getElementById('coEvalBtn'); if (btn) runEvaluate(btn); });
+            .then(loadJobs).then(function () {
+                if (openResume) { setTab('resume'); return; }
+                setTab('evaluate'); var btn = document.getElementById('coEvalBtn'); if (btn) runEvaluate(btn);
+            });
     });
 
     // Load lazily the first time the view is opened.

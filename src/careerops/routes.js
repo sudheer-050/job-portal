@@ -8,6 +8,7 @@ const { checkLiveness } = require('./liveness');
 const { buildCoverLetter, renderHtml, renderMarkdown, tailorResume } = require('./resume');
 const { aiConfig, suggestRewrites } = require('./rewrite');
 const { optimizeForAts } = require('./ats');
+const { applyConfirmedSkills } = require('./confirm');
 const { alertsFromPipeline, summarizeEvaluation, summaryFromRow } = require('./flow');
 const { analyzePatterns, canonicalState, nextFollowUp } = require('./tracker');
 
@@ -201,10 +202,22 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
     // Tailored resume + cover letter from the user's own resume. Draft only; nothing is submitted.
     app.post(`${BASE}/resume`, requireAuth, asyncRoute(async (req, res) => {
         await ready;
-        const { profile, roles, resumeText } = await context(req.jobUsername);
+        const { profile: savedProfile, roles, resumeText } = await context(req.jobUsername);
         if (!resumeText) return res.status(400).json({ error: 'Upload your source resume first — tailored resumes are built only from it.' });
         let job = req.body?.jobId ? await loadJob(req.body.jobId) : pastedJob(req.body || {});
         if (!job) return res.status(req.body?.jobId ? 404 : 400).json({ error: req.body?.jobId ? 'That job is no longer available.' : 'Provide a job title and job description.' });
+        // Skills the person says they have. They count as evidence, but only for keywords this job asks for,
+        // and they go into the Skills list only, never into job history.
+        const stated = applyConfirmedSkills({ requested: req.body?.confirmedSkills, job, profile: savedProfile });
+        if (stated.rejected.length) return res.status(400).json({ error: `These are not skills this job asks for: ${stated.rejected.join(', ')}.` });
+        const profile = stated.profile;
+        if (stated.confirmed.length && req.body?.saveToProfile === true) {
+            await pool.query(
+                `INSERT INTO job_profiles (username, skills) VALUES ($1,$2)
+                 ON CONFLICT (username) DO UPDATE SET skills=EXCLUDED.skills, updated_at=now()`,
+                [req.jobUsername, profile.skills]
+            );
+        }
         const evaluation = evaluateOffer({ job, profile, roles, resumeText });
         // Rebuild in rounds until the ATS estimate reaches the target (default 90), using only changes that stay true.
         const target = Math.min(100, Math.max(50, Number(req.body?.targetScore) || 90));
@@ -217,6 +230,11 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         const ats = { ...optimized.best.ats, target, reached: optimized.reached, rounds: optimized.rounds, explanation: optimized.explanation, aiUsed: optimized.aiUsed, aiError: optimized.aiError };
         const cover = buildCoverLetter({ resumeText, job, profile, requirements: evaluation.blocks.B.requirements });
         const payload = buildPayload({ job, evaluation, built, ats, cover });
+        if (stated.confirmed.length) {
+            payload.confirmedSkills = stated.confirmed;
+            payload.changes = [`Added to Skills because you confirmed you have them: ${stated.confirmed.join(', ')}.${req.body?.saveToProfile === true ? ' Saved to your profile.' : ''}`, ...payload.changes];
+            if (stated.skipped.length) payload.warnings = [`Your profile skills list is full, so these were not saved: ${stated.skipped.join(', ')}.`, ...payload.warnings];
+        }
         if (job.id) {
             await persist(req.jobUsername, job, evaluation);
             await pool.query('UPDATE job_evaluations SET tailored=$3::jsonb, updated_at=now() WHERE username=$1 AND job_id=$2', [req.jobUsername, job.id, JSON.stringify(payload)]);
