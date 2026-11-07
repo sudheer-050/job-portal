@@ -653,17 +653,21 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
 
     // When what Career Ops knows about the person changes, every score is brought up to date in one go:
     // all scored jobs, and every draft that has not been sent.
+    const scoringUsers = new Set();
     async function propagateSkills(username) {
-        const rescored = await reevaluateAll(username);
-        const drafts = await refreshDrafts(username);
-        return { rescored, drafts };
+        scoringUsers.add(username);
+        try {
+            const rescored = await reevaluateAll(username);
+            const drafts = await refreshDrafts(username);
+            return { rescored, drafts };
+        } finally { scoringUsers.delete(username); }
     }
 
     app.post(`${BASE}/refresh-drafts`, requireAuth, scanLimiter, asyncRoute(async (req, res) => {
         res.json(await refreshDrafts(req.jobUsername));
     }));
 
-    return { createPreparedApplication, rewriteApplication, dashboardStats, evaluateJobForUser, rememberedSkills: async username => (await rememberedSkills(username)).map(item => item.skill), schemaReady, syncAlerts };
+    return { createPreparedApplication, isScoring: username => scoringUsers.has(username), rewriteApplication, dashboardStats, evaluateJobForUser, rememberedSkills: async username => (await rememberedSkills(username)).map(item => item.skill), schemaReady, syncAlerts };
 }
 
 module.exports = { SCHEMA, pastedJob, registerCareerOps, toJob };
