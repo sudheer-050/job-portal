@@ -256,8 +256,10 @@
                     <h2>Application tracker</h2>
                     <p class="hint">Hagent tailors and independently verifies each resume. Login or direct-portal steps stay visible here.</p>
                     <div class="application-tabs">
-                        <button type="button" class="btn btn-ghost active" data-application-tab="active">Preparing / ready</button>
-                        <button type="button" class="btn btn-ghost" data-application-tab="applied">Applied jobs</button>
+                        <button type="button" class="btn btn-ghost active" data-application-tab="preparing">Preparing <span class="tab-count" data-tab-count="preparing"></span></button>
+                        <button type="button" class="btn btn-ghost" data-application-tab="ready">Ready to submit <span class="tab-count" data-tab-count="ready"></span></button>
+                        <button type="button" class="btn btn-ghost" data-application-tab="needs">Needs you <span class="tab-count" data-tab-count="needs"></span></button>
+                        <button type="button" class="btn btn-ghost" data-application-tab="applied">Applied <span class="tab-count" data-tab-count="applied"></span></button>
                     </div>
                     <div id="applicationsContainer"><span class="source-status">No tracked applications yet.</span></div>
                 </div>
@@ -775,10 +777,16 @@
         const applicationsContainer = document.getElementById('applicationsContainer');
         const messagesContainer = document.getElementById('messagesContainer');
         const alertsContainer = document.getElementById('alertsContainer');
-        let applicationTab = 'active';
-        let applicationFilter = 'all';
-        const APPLICATION_FILTERS = { ready: ['ready_to_submit'], needs: ['action_required', 'needs_review'] };
-        const APPLICATION_FILTER_LABELS = { ready: 'Ready to submit', needs: 'Needs you' };
+        let applicationTab = 'preparing';
+        // Which tab each status belongs to. Anything not listed (tailoring, verifying, submitting...) is still being prepared.
+        const STATUS_TAB = { ready_to_submit: 'ready', action_required: 'needs', needs_review: 'needs', applied: 'applied' };
+        const tabOf = item => STATUS_TAB[item.status] || 'preparing';
+        const EMPTY_TAB = {
+            preparing: 'Nothing is being prepared right now.',
+            ready: 'Nothing is waiting for you to submit.',
+            needs: 'Nothing needs your attention right now.',
+            applied: 'No applied jobs yet.',
+        };
         let autoApplyReady = false;
         let lastApplications = [];
 
@@ -824,17 +832,16 @@
 
         function renderApplications(items) {
             lastApplications = items || [];
-            const statuses = applicationTab === 'applied' ? null : APPLICATION_FILTERS[applicationFilter];
-            const shown = (items || []).filter(item => applicationTab === 'applied' ? item.status === 'applied' : item.status !== 'applied' && (!statuses || statuses.includes(item.status)));
-            const filterBar = statuses
-                ? `<div class="source-status application-filter">Showing only <strong>${escapeHtml(APPLICATION_FILTER_LABELS[applicationFilter])}</strong> (${shown.length}) &middot; <button type="button" class="link-btn" data-app-filter-clear>Show everything in progress</button></div>`
-                : '';
+            const counts = { preparing: 0, ready: 0, needs: 0, applied: 0 };
+            (items || []).forEach(item => { counts[tabOf(item)] += 1; });
+            document.querySelectorAll('[data-tab-count]').forEach(span => { span.textContent = counts[span.dataset.tabCount] ? '(' + counts[span.dataset.tabCount] + ')' : ''; });
+            const shown = (items || []).filter(item => tabOf(item) === applicationTab);
             if (!shown.length) {
-                const empty = applicationTab === 'applied' ? 'No applied jobs yet.' : statuses ? 'Nothing is in this state right now.' : 'No applications being prepared.';
-                applicationsContainer.innerHTML = filterBar + `<span class="source-status">${empty}</span>`;
+                const empty = EMPTY_TAB[applicationTab] || 'No applications here.';
+                applicationsContainer.innerHTML = `<span class="source-status">${empty}</span>`;
                 return;
             }
-            applicationsContainer.innerHTML = filterBar + shown.map(item => `
+            applicationsContainer.innerHTML = shown.map(item => `
                 <div class="application-row">
                     <div class="application-row-head"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.company || 'Company not listed')} &middot; ${escapeHtml(item.source || '')}</small></div><span class="application-status ${item.status === 'applied' ? 'applied' : ''}">${escapeHtml(item.status.replaceAll('_',' '))}${item.quality_score ? ` &middot; ${String(item.quality_notes || '').startsWith('{"source":"career-ops"') ? 'ATS ' : ''}${item.quality_score}/100` : ''}</span></div>
                     ${item.coScore != null ? `<div class="source-status">Career Ops: <strong>${Number(item.coScore).toFixed(1)}/5</strong> &middot; ${escapeHtml(item.coVerdict || '')} &middot; ${escapeHtml(item.coTier || '')}${item.coCoverage != null ? ` &middot; CV match ${Number(item.coCoverage)}%` : ''} &middot; <a href="#careerops">Open Career Ops</a></div>` : ''}
@@ -872,7 +879,6 @@
         document.querySelectorAll('[data-application-tab]').forEach(button => button.addEventListener('click', () => {
             document.querySelectorAll('[data-application-tab]').forEach(item => item.classList.toggle('active', item === button));
             applicationTab = button.dataset.applicationTab;
-            applicationFilter = 'all';
             loadApplications();
         }));
 
@@ -893,7 +899,6 @@
                 return;
             }
             if (event.target.closest('[data-app-retry]')) { loadApplications(); return; }
-            if (event.target.closest('[data-app-filter-clear]')) { applicationFilter = 'all'; renderApplications(lastApplications); return; }
             const submitButton = event.target.closest('[data-submit-application]');
             const appliedButton = event.target.closest('[data-mark-applied]');
             if (!submitButton && !appliedButton) return;
@@ -912,8 +917,7 @@
             const tile = event.target.closest('[data-app-filter]');
             if (!tile) return;
             event.preventDefault();
-            applicationTab = tile.dataset.appFilter === 'applied' ? 'applied' : 'active';
-            applicationFilter = tile.dataset.appFilter === 'applied' ? 'all' : tile.dataset.appFilter;
+            applicationTab = tile.dataset.appFilter; // ready, needs or applied
             document.querySelectorAll('[data-application-tab]').forEach(item => item.classList.toggle('active', item.dataset.applicationTab === applicationTab));
             setWorkspaceView('applications');
             renderApplications(lastApplications);
