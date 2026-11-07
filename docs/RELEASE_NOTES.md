@@ -6,6 +6,10 @@
 
 **Last reviewed:** 2026-11-06
 
+## Unreleased — Larger dashboard strip
+
+- **Dashboard tiles:** the five tiles are larger (bigger numbers and labels, taller) and are now one bar split into five equal sections with thin dividers, running edge to edge across the content area. Still one row at every width; below about 1,000px the bar scrolls sideways.
+
 ## 3.5.0 — Inline apply check and a compact dashboard
 
 Released 2026-11-06.
