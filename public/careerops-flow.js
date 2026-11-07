@@ -68,7 +68,7 @@
 
     function decorate() {
         cards().forEach(function (card) {
-            card.querySelectorAll('.cof-row, .cof-panel').forEach(function (node) { node.remove(); });
+            card.querySelectorAll('.cof-row, .cof-panel, .cof-checkbar').forEach(function (node) { node.remove(); });
             var s = cache[cardId(card)];
             if (!s) return;
             var tierKind = s.tier === 'High Confidence' ? 'ok' : s.tier === 'Suspicious' ? 'bad' : 'warn';
@@ -79,16 +79,18 @@
             if (s.blockers.length) html += '<span class="cof-pill bad">' + esc(s.blockers[0]) + '</span>';
             else if (s.missing.length) html += '<span class="cof-note">Not in your resume: ' + esc(s.missing.slice(0, 3).join(', ')) + '</span>';
             var id = cardId(card);
-            html += '<button type="button" class="link-btn cof-why" data-cof-why="' + esc(id) + '" aria-expanded="' + (open[id] ? 'true' : 'false') + '">' + (open[id] ? 'Hide analysis' : 'Why this score') + '</button>';
+            // The check sits directly below the Tailor & apply buttons: a summary on the left and a
+            // same-size button on the right that opens the full pre-apply check.
+            var button = '<button type="button" class="btn btn-ghost btn-small cof-why" data-cof-why="' + esc(id) + '" aria-expanded="' + (open[id] ? 'true' : 'false') + '">' + (open[id] ? 'Hide check' : 'Check before you apply') + '</button>';
             var row = document.createElement('div');
-            row.className = 'cof-row';
-            row.innerHTML = html;
-            var anchor = card.querySelector('.job-meta') || card.querySelector('.job-card-top');
-            if (anchor) anchor.insertAdjacentElement('afterend', row);
+            row.className = 'cof-checkbar';
+            row.innerHTML = '<div class="cof-row">' + html + '</div>' + button;
+            var footer = card.querySelector('.job-card-footer') || card.querySelector('.job-meta') || card.querySelector('.job-card-top');
+            if (footer) footer.insertAdjacentElement('afterend', row);
             if (open[id]) {
                 var panelEl = document.createElement('div');
                 panelEl.className = 'cof-panel';
-                panelEl.innerHTML = analysis[id] ? analysisHtml(analysis[id]) : '<p class="cof-note">Loading the analysis…</p>';
+                panelEl.innerHTML = analysis[id] ? analysisHtml(analysis[id], s) : '<p class="cof-note">Loading the check…</p>';
                 row.insertAdjacentElement('afterend', panelEl);
             }
         });
@@ -98,19 +100,28 @@
     function statusPill(status) { return status === 'match' ? '<span class="cof-pill ok">Match</span>' : status === 'partial' ? '<span class="cof-pill warn">Partial</span>' : status === 'gap' ? '<span class="cof-pill bad">Gap</span>' : '<span class="cof-pill">Check</span>'; }
     function chips(items, kind) { return items.length ? '<div class="cof-chips">' + items.map(function (i) { return '<span class="cof-pill ' + kind + '">' + esc(i.term) + '</span>'; }).join('') + '</div>' : '<p class="cof-note">None</p>'; }
 
-    function analysisHtml(data) {
+    function analysisHtml(data, s) {
         var b = data.evaluation.blocks;
+        var A = b.A || {}, C = b.C || {}, E = b.E || {}, F = b.F || {};
+        var gate = s && s.gate ? s.gate : null;
+        var decision = gate ? '<div class="cof-decision ' + (gate.proceed ? 'ok' : 'warn') + '"><strong>' + (gate.proceed ? 'Good to apply' : 'Think before you apply') + '</strong><span>' + esc(gate.reason || '') + '</span></div>' : '';
+        var about = '<h4>About this role</h4><ul class="cof-list">' +
+            (A.tldr ? '<li>' + esc(A.tldr) + '</li>' : '') +
+            '<li>Level <strong>' + esc(A.seniority || 'unknown') + '</strong> · ' + esc(A.workplace || 'unknown') + ' · ' + esc(A.location || 'location not listed') + (A.requiredYears ? ' · asks for ' + esc(A.requiredYears) + '+ years' : '') + '</li></ul>';
+        var feature = (E.keywordsToFeature || []).length ? '<h4>Feature these in your application</h4><div class="cof-chips">' + E.keywordsToFeature.map(function (k) { return '<span class="cof-pill ok">' + esc(k) + '</span>'; }).join('') + '</div>' : '';
+        var honest = (E.honestGaps || []).length ? '<h4>Gaps to address honestly</h4><ul class="cof-list">' + E.honestGaps.map(function (g) { return '<li>' + esc(String(g).slice(0, 160)) + '</li>'; }).join('') + '</ul><p class="cof-note">Never add these to your resume unless they are true.</p>' : '';
+        var ask = (F.askThem || []).length ? '<h4>Ask the employer</h4><ul class="cof-list">' + F.askThem.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ul>' : '';
         var reqs = b.B.requirements.slice(0, 8).map(function (r) {
             return '<li>' + statusPill(r.status) + ' ' + esc(r.requirement.slice(0, 140)) + (r.priority === 'preferred' ? ' <span class="cof-note">(nice to have)</span>' : '') +
                 (r.evidence ? '<div class="cof-evidence">Your resume: “' + esc(r.evidence) + '”</div>' : '') + '</li>';
         }).join('');
         var signals = (b.G.signals || []).filter(function (s) { return s.kind !== 'positive'; }).slice(0, 3).map(function (s) { return '<li>' + esc(s.label) + (s.detail ? ' <span class="cof-note">— ' + esc(s.detail) + '</span>' : '') + '</li>'; }).join('');
-        return '<div class="cof-analysis">' +
+        return '<div class="cof-analysis">' + decision + about +
             '<h4>Skills you evidence</h4>' + chips(b.B.present, 'ok') +
             '<h4>Mentioned only once</h4>' + chips(b.B.thin, 'warn') +
             '<h4>Not in your resume</h4>' + chips(b.B.missing, 'bad') +
             (reqs ? '<h4>Requirements</h4><ul class="cof-list">' + reqs + '</ul>' : '') +
-            '<h4>Fit</h4><ul class="cof-list"><li>Level: job is <strong>' + esc(b.C.jdLevel) + '</strong>, you are <strong>' + esc(b.C.yourLevel) + '</strong> (' + esc(String(b.C.fit).replace('-', ' ')) + ').</li><li>Pay: ' + esc(b.D.summary) + '</li></ul>' +
+            '<h4>Fit</h4><ul class="cof-list"><li>Level: job is <strong>' + esc(b.C.jdLevel) + '</strong>, you are <strong>' + esc(b.C.yourLevel) + '</strong> (' + esc(String(b.C.fit).replace('-', ' ')) + ').</li><li>Pay: ' + esc(b.D.summary) + '</li>' + (C.plan ? '<li>Approach: ' + esc(C.plan) + '</li>' : '') + '</ul>' + feature + honest + ask +
             (signals ? '<h4>Posting signals</h4><ul class="cof-list">' + signals + '</ul>' : '') +
             '<div class="cof-actions"><button type="button" class="btn btn-ghost btn-small" data-cof-full="' + esc(data.jobId) + '">Open full evaluation</button></div></div>';
     }
