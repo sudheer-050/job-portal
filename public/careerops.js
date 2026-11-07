@@ -506,7 +506,7 @@
         state.started = true;
         call(API + '/ai').then(function (d) { state.ai = d; }).catch(function () { state.ai = { configured: false }; })
             .then(loadJobs).then(function () {
-                if (openResume) { setTab('resume'); return; }
+                if (openResume) { setTab('resume'); var buildNow = document.getElementById('coBuildBtn'); if (buildNow) runBuild(buildNow, false); return; }
                 setTab('evaluate'); var btn = document.getElementById('coEvalBtn'); if (btn) runEvaluate(btn);
             });
     });

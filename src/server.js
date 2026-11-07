@@ -884,7 +884,7 @@ app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
                 a.error,a.created_at,a.updated_at,a.applied_at,
                 p.title,p.company,p.location,p.apply_url AS "applyUrl",p.source,
                 e.score::float AS "coScore",e.verdict AS "coVerdict",e.legitimacy_tier AS "coTier",e.coverage AS "coCoverage",
-                (e.tailored IS NOT NULL) AS "coHasResume"
+                e.missing AS "coMissing", (e.tailored IS NOT NULL) AS "coHasResume"
          FROM job_applications a JOIN job_postings p ON p.id=a.job_id
          LEFT JOIN job_evaluations e ON e.username=a.username AND e.job_id=a.job_id
          WHERE a.username=$1 ORDER BY a.updated_at DESC`, [req.jobUsername]

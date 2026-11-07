@@ -20,6 +20,10 @@
 - **Layout:** the KPI strip moved to the right, above the main content, and the sidebar now runs the full height of the window from the header down, instead of starting below the strip. On narrow screens the sidebar stacks above the strip as before.
 - **Dashboard tiles:** the five tiles are larger (bigger numbers and labels, taller) and are now one bar split into five equal sections with thin dividers, running edge to edge across the content area. Still one row at every width; below about 1,000px the bar scrolls sideways.
 
+## Unreleased — Missing skills where you can see them
+
+- **Pick missing skills right on the row:** each application below 95% CV match now lists its missing skills with tick boxes directly under the Career Ops score, with **Add ticked skills to my resume** beside them; the CV match updates in place. The Discover check panel shows the same list open by default (it can still be collapsed). The Career Ops tab, when opened for a job, builds the resume straight away so its question is on screen.
+
 ## 3.5.0 — Inline apply check and a compact dashboard
 
 Released 2026-11-06.
