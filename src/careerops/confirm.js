@@ -27,7 +27,7 @@ function applyConfirmedSkills({ requested, job, profile = {} }) {
         if (!confirmed.includes(term)) confirmed.push(term);
     }
     const limited = confirmed.slice(0, MAX_CONFIRMED);
-    const merged = mergeSkills(profile.skills, limited);
+    const merged = mergeSkills(profile.skills, limited, 100000);
     return { profile: { ...profile, skills: merged.skills }, confirmed: limited, rejected, skipped: merged.skipped };
 }
 

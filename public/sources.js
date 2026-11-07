@@ -8,7 +8,7 @@
     var panel = document.getElementById('srcPanel');
     if (!card || !panel) return;
 
-    var state = { settings: null, counts: null, findings: [], message: '', error: '', busy: false, started: false };
+    var state = { settings: null, counts: null, findings: [], skills: [], message: '', error: '', busy: false, started: false };
     var KIND_LABEL = { project: 'Projects', experience: 'Experience', education: 'Education', certification: 'Certifications', skill: 'Skills' };
     var SOURCE_LABEL = { github: 'GitHub', portfolio: 'Portfolio', linkedin: 'LinkedIn' };
 
@@ -66,6 +66,8 @@
             '<p class="src-status">Last checked: ' + esc(when(s.lastCheckedAt)) + ' — ' + esc(resultLine(s.lastResult)) + '</p>' +
             (state.error ? '<div class="co-error" role="alert">' + esc(state.error) + '</div>' : '') +
             (state.message ? '<div class="src-ok" role="status">' + esc(state.message) + '</div>' : '') +
+            '<div class="src-review"><h3>Skills you have confirmed' + (state.skills.length ? ' (' + state.skills.length + ')' : '') + '</h3>' +
+            (state.skills.length ? '<p class="src-note">When a job asks for a skill your resume lacks and you say you have it, Career Ops remembers it and uses it for every later job that asks. Remove any that are not true.</p><div class="src-actions">' + state.skills.map(function (s) { return '<span class="cof-pill ok">' + esc(s.skill) + ' <button type="button" class="link-btn" data-src-forget="' + esc(s.skill) + '" aria-label="Remove ' + esc(s.skill) + '">remove</button></span>'; }).join(' ') + '</div>' : '<p class="src-note">None yet. They appear here when you confirm a missing skill on a job.</p>') + '</div>' +
             '<div class="src-review"><h3>' + (state.findings.length ? state.findings.length + ' new item' + (state.findings.length === 1 ? '' : 's') + ' to review' : 'Nothing new to review') + '</h3>' +
             (state.findings.length ? '<p class="src-note">Tick what is really yours and relevant. Approved items are added to your resume and skills; the rest can be dismissed. Items you dismiss will not come back.</p>' + list +
                 '<div class="src-actions"><button type="button" class="btn btn-primary" id="srcAccept">Add selected to my resume &amp; profile</button><button type="button" class="btn btn-ghost" id="srcDismiss">Dismiss selected</button><button type="button" class="btn btn-ghost btn-small" id="srcAll">Select all</button></div>' : '') +
@@ -73,8 +75,8 @@
     }
 
     function load() {
-        return Promise.all([call(API), call(API + '/findings')]).then(function (r) {
-            state.settings = r[0].settings; state.counts = r[0].counts; state.findings = r[1].findings; render();
+        return Promise.all([call(API), call(API + '/findings'), call('/api/jobs/careerops/skills').catch(function () { return { skills: [] }; })]).then(function (r) {
+            state.settings = r[0].settings; state.counts = r[0].counts; state.findings = r[1].findings; state.skills = r[2].skills || []; render();
         }).catch(function (error) { state.error = error.message; render(); });
     }
 
@@ -109,6 +111,12 @@
     panel.addEventListener('click', function (event) {
         var button = event.target.closest('button');
         if (!button) return;
+        if (button.dataset.srcForget) {
+            run(button, 'Removing…', function () {
+                return call('/api/jobs/careerops/skills/' + encodeURIComponent(button.dataset.srcForget), { method: 'DELETE' }).then(function () { return 'Removed. Future jobs will no longer use it.'; });
+            });
+            return;
+        }
         if (button.id === 'srcSaveGithub') run(button, 'Saving…', function () {
             return call(API, { method: 'PUT', body: { github: document.getElementById('srcGithub').value, autoCheck: document.getElementById('srcAuto').checked } }).then(function () { return 'GitHub saved.'; });
         });

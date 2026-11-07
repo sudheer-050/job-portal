@@ -8,7 +8,7 @@
     if (!card || !panel || !tabs) return;
 
     var state = { tab: 'evaluate', jobId: '', draft: {}, evaluation: null, resume: null, savedJobs: [], pipeline: [], started: false, extra: null,
-        ai: null, suggestions: null, target: 90, aiConsent: false, application: null, confirmed: [], saveSkills: true };
+        ai: null, suggestions: null, target: 90, aiConsent: false, application: null, confirmed: [] };
 
     function esc(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
@@ -220,6 +220,7 @@
         var missing = (r.ats && r.ats.keywords && r.ats.keywords.missing) || [];
         var done = r.confirmedSkills || [];
         var out = '';
+        if (r.rememberedUsed && r.rememberedUsed.length) out += '<div class="co-card"><h4>Used from skills you confirmed earlier</h4><div class="co-chips">' + r.rememberedUsed.map(function (s) { return chip(s, 'ok'); }).join('') + '</div><p class="co-note">Career Ops remembered these from other jobs and added them to Skills because this job asks for them. You can review or remove them under Profile &amp; resume.</p></div>';
         if (done.length) out += '<div class="co-card"><h4>Skills you confirmed</h4><div class="co-chips">' + done.map(function (s) { return chip(s, 'ok'); }).join('') + '</div><p class="co-note">Added to the Skills section at your request. They are not added to your job history.</p></div>';
         if (!missing.length) return out;
         out += '<div class="co-card" id="coSkillsAsk"><h4>Do you have any of these skills?</h4>' +
@@ -227,8 +228,7 @@
             '<div class="co-chips" style="margin:8px 0">' + missing.map(function (term) {
                 return '<label class="co-check co-skillpick"><input type="checkbox" data-skill="' + esc(term) + '"> ' + esc(term) + '</label>';
             }).join('') + '</div>' +
-            '<p class="co-note">Only tick a skill you could talk about in an interview. Your answer is treated as your own statement; Career Ops never ticks anything for you and never writes these into your job history.</p>' +
-            '<label class="co-check"><input type="checkbox" id="coSaveSkills"' + (state.saveSkills ? ' checked' : '') + '> Also save the ticked skills to my profile so future resumes and applications use them</label>' +
+            '<p class="co-note">Only tick a skill you could talk about in an interview. Career Ops remembers what you tick and reuses it for every later job that asks for it. Your answer is treated as your own statement; Career Ops never ticks anything for you and never writes these into your job history.</p>' +
             '<div class="co-row"><button type="button" class="btn btn-primary" id="coConfirmSkills">Add ticked skills &amp; rebuild</button></div></div>';
         return out;
     }
@@ -281,7 +281,7 @@
         var payload = jobPayload();
         payload.targetScore = state.target;
         payload.aiConsent = state.aiConsent;
-        if (state.confirmed.length) { payload.confirmedSkills = state.confirmed; payload.saveToProfile = state.saveSkills; }
+        if (state.confirmed.length) { payload.confirmedSkills = state.confirmed; }
         if (withWording) payload.rewrites = acceptedRewrites();
         busy(button, true, 'Optimising…');
         return call(API + '/resume', { method: 'POST', body: payload }).then(function (data) {
@@ -458,8 +458,6 @@
         else if (t.id === 'coBuildBtn') runBuild(t, false);
         else if (t.id === 'coConfirmSkills') {
             var ticked = [].slice.call(panel.querySelectorAll('input[data-skill]:checked')).map(function (box) { return box.dataset.skill; });
-            var save = document.getElementById('coSaveSkills');
-            state.saveSkills = !save || save.checked;
             if (!ticked.length) { showError('Tick at least one skill you genuinely have, or leave the list as it is.'); return; }
             ticked.forEach(function (skill) { if (state.confirmed.indexOf(skill) < 0) state.confirmed.push(skill); });
             runBuild(t, false);

@@ -119,9 +119,8 @@
         var html = '<div class="cof-ask"><h4>CV match is ' + esc(coverage) + '% — aim for ' + COVERAGE_TARGET + '%</h4>' + msg +
             '<button type="button" class="btn btn-ghost btn-small" data-cof-viewmissing="' + esc(id) + '" aria-expanded="' + (askOpen[id] ? 'true' : 'false') + '">' + (askOpen[id] ? 'Hide missing skills' : 'View missing skills (' + missing.length + ')') + '</button>';
         if (askOpen[id]) {
-            html += '<div class="cof-ask-body"><p class="cof-note">Do you actually have any of these? Tick only the ones you genuinely do. They are added to your Skills section (never to your job history), your ATS score and CV match go up, and nothing is ticked for you.</p><div class="cof-chips">' +
+            html += '<div class="cof-ask-body"><p class="cof-note">Do you actually have any of these? Tick only the ones you genuinely do. Career Ops remembers them for every later job that asks for them. They are added to your Skills section (never to your job history), your ATS score and CV match go up, and nothing is ticked for you.</p><div class="cof-chips">' +
                 missing.map(function (m) { return '<label class="co-check co-skillpick"><input type="checkbox" data-cof-skill="' + esc(m.term) + '"> ' + esc(m.term) + '</label>'; }).join('') + '</div>' +
-                '<label class="co-check"><input type="checkbox" data-cof-save checked> Also save them to my profile skills so every resume and application uses them</label>' +
                 '<div class="cof-actions"><button type="button" class="btn btn-primary btn-small" data-cof-addskills="' + esc(id) + '">Add ticked skills to my resume</button></div></div>';
         }
         return html + '</div>';
@@ -167,18 +166,17 @@
         var id = button.dataset.cofAddskills;
         var panelEl = button.closest('.cof-panel');
         var ticked = [].slice.call(panelEl.querySelectorAll('input[data-cof-skill]:checked')).map(function (box) { return box.dataset.cofSkill; });
-        var save = panelEl.querySelector('input[data-cof-save]');
         if (!ticked.length) { askMsg[id] = 'Tick at least one skill you genuinely have.'; decorate(); return; }
         button.disabled = true;
         button.textContent = 'Adding…';
-        call(API + '/resume', { method: 'POST', body: { jobId: id, targetScore: 90, confirmedSkills: ticked, saveToProfile: !save || save.checked } }).then(function (built) {
-            askMsg[id] = 'Added ' + ticked.join(', ') + '. CV match is now ' + built.coverage + '% and the ATS score is ' + built.ats.score + '/100.' + (save && !save.checked ? '' : ' Saved to your profile.');
-            delete cache[id];
+        call(API + '/resume', { method: 'POST', body: { jobId: id, targetScore: 90, confirmedSkills: ticked } }).then(function (built) {
+            askMsg[id] = 'Added ' + ticked.join(', ') + '. CV match is now ' + built.coverage + '% and the ATS score is ' + built.ats.score + '/100.' + ' Remembered, so any later job that asks for them uses them automatically.';
+            Object.keys(cache).forEach(function (key) { delete cache[key]; }); // remembered skills change every job's match
             delete analysis[id];
             return ensureSummary(id).then(function () { return call(API + '/evaluations/' + encodeURIComponent(id)); }).then(function (data) { analysis[id] = data; });
         }).catch(function (error) {
             askMsg[id] = 'Could not add those skills: ' + error.message;
-        }).then(function () { askOpen[id] = !!askOpen[id]; refreshView(); });
+        }).then(function () { askOpen[id] = !!askOpen[id]; refreshView(); scan(false); });
     }
 
     recs.addEventListener('click', function (event) {

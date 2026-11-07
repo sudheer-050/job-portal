@@ -780,7 +780,8 @@ app.get('/api/jobs/recommendations', requireAuth, async (req, res) => {
         const locations = locationsResult.rows.length ? locationsResult.rows : [{ location: null }];
         const preferences = rolesResult.rows.flatMap(role => locations.map(location => ({ ...profile, role: role.role, location: location.location })));
         await jobService.refreshForPreferences(preferences);
-        const candidateText = `${profile.skills || ''} ${resumeResult.rows[0]?.resume_text || ''}`.trim();
+        const remembered = careerOps ? await careerOps.rememberedSkills(req.jobUsername).catch(() => []) : [];
+        const candidateText = `${profile.skills || ''} ${remembered.join(' ')} ${resumeResult.rows[0]?.resume_text || ''}`.trim();
         const recommendations = await jobService.recommendations(preferences, candidateText);
         const [saved, hidden, applications] = await Promise.all([
             pool.query('SELECT job_id FROM job_saved_jobs WHERE username=$1', [req.jobUsername]),
