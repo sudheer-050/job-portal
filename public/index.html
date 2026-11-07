@@ -810,6 +810,18 @@
             } catch (err) { messagesContainer.innerHTML = `<span class="source-status">${escapeHtml(err.message)}</span>`; }
         }
 
+        const appSkillMessages = {};
+        // Missing skills sit on the row itself, next to the CV match: tick the ones you really have and add them.
+        function missingSkillsBlock(item) {
+            const msg = appSkillMessages[item.job_id] ? `<div class="source-status" role="status">${escapeHtml(appSkillMessages[item.job_id])}</div>` : '';
+            const missing = Array.isArray(item.coMissing) ? item.coMissing : [];
+            if (item.status === 'applied' || item.coCoverage == null || Number(item.coCoverage) >= 95 || !missing.length) return msg;
+            return `<div class="missing-skills"><strong>Missing from your resume</strong> (CV match ${Number(item.coCoverage)}%, aim for 95%). Tick any you really have:` +
+                `<div class="missing-skills-list">${missing.map(term => `<label class="co-check co-skillpick"><input type="checkbox" data-app-skill="${escapeHtml(term)}"> ${escapeHtml(term)}</label>`).join('')}</div>` +
+                `<div><button type="button" class="btn btn-primary btn-small" data-app-addskills="${escapeHtml(item.job_id)}">Add ticked skills to my resume</button></div>` +
+                `<div class="source-status">Only tick skills you could talk about in an interview. They go into your Skills section (never your job history), are remembered for future jobs, and raise your CV match and ATS score.</div>${msg}</div>`;
+        }
+
         function renderApplications(items) {
             lastApplications = items || [];
             const statuses = applicationTab === 'applied' ? null : APPLICATION_FILTERS[applicationFilter];
@@ -826,6 +838,7 @@
                 <div class="application-row">
                     <div class="application-row-head"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.company || 'Company not listed')} &middot; ${escapeHtml(item.source || '')}</small></div><span class="application-status ${item.status === 'applied' ? 'applied' : ''}">${escapeHtml(item.status.replaceAll('_',' '))}${item.quality_score ? ` &middot; ${String(item.quality_notes || '').startsWith('{"source":"career-ops"') ? 'ATS ' : ''}${item.quality_score}/100` : ''}</span></div>
                     ${item.coScore != null ? `<div class="source-status">Career Ops: <strong>${Number(item.coScore).toFixed(1)}/5</strong> &middot; ${escapeHtml(item.coVerdict || '')} &middot; ${escapeHtml(item.coTier || '')}${item.coCoverage != null ? ` &middot; CV match ${Number(item.coCoverage)}%` : ''} &middot; <a href="#careerops">Open Career Ops</a></div>` : ''}
+                    ${missingSkillsBlock(item)}
                     ${item.error ? `<div class="error-msg" style="display:block">${escapeHtml(item.error)}</div>` : ''}
                     ${item.status === 'ready_to_submit' ? '<div class="source-status">Ready: open the employer page, submit with the prepared resume and cover letter, then press <strong>Mark applied</strong>.</div>' : ''}
                     ${item.requires_login ? '<div class="source-status">Your login is required on the employer portal.</div>' : ''}
@@ -835,7 +848,6 @@
                         ${item.tailored_resume ? `<a class="btn btn-ghost" href="/api/jobs/applications/${item.id}/resume">Resume v${item.resume_version || 1}</a>` : ''}
                         ${item.cover_letter ? `<a class="btn btn-ghost" href="/api/jobs/applications/${item.id}/cover-letter">Cover letter v${item.cover_letter_version || 1}</a>` : ''}
                         <a class="btn btn-ghost" href="${escapeHtml(item.applyUrl)}" target="_blank" rel="noopener noreferrer">Open application / track</a>
-                        ${item.coCoverage != null && Number(item.coCoverage) < 95 && item.status !== 'applied' ? `<button class="btn btn-ghost" data-co-evaluate="${escapeHtml(item.job_id)}" data-co-open="resume" data-co-label="${escapeHtml(item.title)}" title="Say which missing skills you really have; they are added to your resume">Add missing skills (CV match ${Number(item.coCoverage)}%)</button>` : ''}
                         ${item.status === 'ready_to_submit' || item.status === 'action_required' ? `<button class="btn btn-primary" data-mark-applied="${item.id}" title="Use this after you have submitted the application on the employer's site">Mark applied</button>` : ''}
                         ${item.status === 'ready_to_submit' && autoApplyReady ? `<button class="btn btn-ghost" data-submit-application="${item.id}">Submit now</button>` : ''}
                     </div>
@@ -865,6 +877,21 @@
         }));
 
         applicationsContainer.addEventListener('click', async event => {
+            const addSkills = event.target.closest('[data-app-addskills]');
+            if (addSkills) {
+                const jobId = addSkills.dataset.appAddskills;
+                const ticked = [...addSkills.closest('.application-row').querySelectorAll('input[data-app-skill]:checked')].map(box => box.dataset.appSkill);
+                if (!ticked.length) { appSkillMessages[jobId] = 'Tick at least one skill you genuinely have.'; renderApplications(lastApplications); return; }
+                addSkills.disabled = true;
+                addSkills.textContent = 'Adding…';
+                try {
+                    const built = await api('/api/jobs/careerops/resume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId, targetScore: 90, confirmedSkills: ticked }) });
+                    appSkillMessages[jobId] = `Added ${ticked.join(', ')}. CV match is now ${built.coverage}% and the ATS score is ${built.ats.score}/100. Remembered for future jobs.`;
+                } catch (err) { appSkillMessages[jobId] = 'Could not add those skills: ' + err.message; }
+                await loadApplications();
+                loadDashboard();
+                return;
+            }
             if (event.target.closest('[data-app-retry]')) { loadApplications(); return; }
             if (event.target.closest('[data-app-filter-clear]')) { applicationFilter = 'all'; renderApplications(lastApplications); return; }
             const submitButton = event.target.closest('[data-submit-application]');

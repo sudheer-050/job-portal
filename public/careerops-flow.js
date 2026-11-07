@@ -117,8 +117,8 @@
         var msg = askMsg[id] ? '<p class="cof-note" role="status">' + esc(askMsg[id]) + '</p>' : '';
         if (coverage === null || coverage >= COVERAGE_TARGET || !missing.length) return msg;
         var html = '<div class="cof-ask"><h4>CV match is ' + esc(coverage) + '% — aim for ' + COVERAGE_TARGET + '%</h4>' + msg +
-            '<button type="button" class="btn btn-ghost btn-small" data-cof-viewmissing="' + esc(id) + '" aria-expanded="' + (askOpen[id] ? 'true' : 'false') + '">' + (askOpen[id] ? 'Hide missing skills' : 'View missing skills (' + missing.length + ')') + '</button>';
-        if (askOpen[id]) {
+            '<button type="button" class="btn btn-ghost btn-small" data-cof-viewmissing="' + esc(id) + '" aria-expanded="' + (askOpen[id] !== false ? 'true' : 'false') + '">' + (askOpen[id] !== false ? 'Hide missing skills' : 'Show missing skills (' + missing.length + ')') + '</button>';
+        if (askOpen[id] !== false) {
             html += '<div class="cof-ask-body"><p class="cof-note">Do you actually have any of these? Tick only the ones you genuinely do. Career Ops remembers them for every later job that asks for them. They are added to your Skills section (never to your job history), your ATS score and CV match go up, and nothing is ticked for you.</p><div class="cof-chips">' +
                 missing.map(function (m) { return '<label class="co-check co-skillpick"><input type="checkbox" data-cof-skill="' + esc(m.term) + '"> ' + esc(m.term) + '</label>'; }).join('') + '</div>' +
                 '<div class="cof-actions"><button type="button" class="btn btn-primary btn-small" data-cof-addskills="' + esc(id) + '">Add ticked skills to my resume</button></div></div>';
@@ -176,12 +176,12 @@
             return ensureSummary(id).then(function () { return call(API + '/evaluations/' + encodeURIComponent(id)); }).then(function (data) { analysis[id] = data; });
         }).catch(function (error) {
             askMsg[id] = 'Could not add those skills: ' + error.message;
-        }).then(function () { askOpen[id] = !!askOpen[id]; refreshView(); scan(false); });
+        }).then(function () { refreshView(); scan(false); });
     }
 
     recs.addEventListener('click', function (event) {
         var viewMissing = event.target.closest('[data-cof-viewmissing]');
-        if (viewMissing) { var vid = viewMissing.dataset.cofViewmissing; askOpen[vid] = !askOpen[vid]; decorate(); return; }
+        if (viewMissing) { var vid = viewMissing.dataset.cofViewmissing; askOpen[vid] = askOpen[vid] === false; decorate(); return; }
         var addBtn = event.target.closest('[data-cof-addskills]');
         if (addBtn) { addSkills(addBtn); return; }
         var why = event.target.closest('[data-cof-why]');
