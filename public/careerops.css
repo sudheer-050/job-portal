@@ -169,3 +169,5 @@
 .missing-skills-list { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .tab-count { font-weight: 600; opacity: .75; }
+
+#sources .co-skillpick { margin: 2px 0; }

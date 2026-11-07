@@ -3,6 +3,12 @@
 // JD keyword extraction and CV coverage. Diagnostic only: it reports which job
 // keywords the resume already evidences and never injects keywords into it.
 
+// Function words from other languages that appear in non-English postings; they are never skills.
+const FOREIGN_WORDS = new Set(('maar niet voor werken zijn bouwen een het van met bij ook naar wij jij ons onze jouw samen bent hebben wordt worden kunt ' +
+    'und der die das mit für von nicht sie wir ihr eine einen einer sind wird werden bei auf oder auch wie über zur zum ihre unser unsere dein deine ' +
+    'les des une pour dans avec vous nous sur par est sont vos notre votre qui que ' +
+    'para con los las una por del como más sus nuestro nuestra').split(' '));
+
 const STOP_WORDS = new Set(`a about above across after again all also am an and any are as at be because been before being
 below between both but by can could did do does doing down during each few for from further had has have having he her here
 hers him his how i if in into is it its just me more most my no nor not now of off on once only or other our out over own same
@@ -86,7 +92,7 @@ function extractKeywords(jobText, { limit = 24 } = {}) {
         }
         const lineTokens = tokenize(line);
         for (const token of lineTokens) {
-            if (token.length < 2 || STOP_WORDS.has(token) || GENERIC_WORDS.has(token) || /^\d+$/.test(token)) continue;
+            if (token.length < 2 || STOP_WORDS.has(token) || FOREIGN_WORDS.has(token) || GENERIC_WORDS.has(token) || /^\d+$/.test(token)) continue;
             if (seen.has(token)) continue;
             if (KNOWN_TERMS.has(token)) bump(token, 2 + lineBonus);
             else if (token.length >= 4 && /[a-z]/.test(token)) bump(token, 0.5 + (lineBonus ? 0.25 : 0));
