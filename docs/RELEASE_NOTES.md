@@ -9,7 +9,7 @@
 ## Unreleased — Inline apply check and a single-row dashboard
 
 - **Check before you apply** now sits on each job card directly under the Tailor & apply buttons, as a same-size button. It opens a fuller check: a clear recommendation, role summary, skills and requirements against your resume, fit and approach, keywords to feature, gaps to address honestly, and questions to ask the employer. The warning dialog for low-fit or suspicious jobs is unchanged.
-- **Dashboard tiles:** the strip is now a single row of five tiles (Strong matches, Saved, In progress, Applied, Follow-ups due). Interviews, Offers and Unread were removed from it; those items remain in their own sections. On very narrow screens the row scrolls sideways instead of wrapping.
+- **Dashboard tiles:** the strip is now a single row of five tiles (Strong matches, Saved, In progress, Applied, Follow-ups due). Interviews, Offers and Unread were removed from it; those items remain in their own sections. On very narrow screens the row scrolls sideways instead of wrapping. The tiles are now compact: the number sits beside its label, so each tile is about half its previous height.
 
 ## 3.4.0 — Profile sources, Career Ops in every step, forgot password
 
