@@ -164,3 +164,17 @@ test('an AI failure never breaks the optimiser', async () => {
     assert.equal(result.aiError, 'provider down');
     assert.ok(result.best.ats.score > 0);
 });
+
+test('improvement details say where points are lost and which lines to change', () => {
+    const { improvementDetails } = require('./ats');
+    const { tailored } = tailorResume({ resumeText: RESUME, job: MATCHING_JOB, profile });
+    // make two bullets weaker so there is something specific to point at
+    tailored.experience[0].bullets = ['Helped with reporting for the team', 'Responsible for dashboards'];
+    const ats = scoreAts({ tailored, job: MATCHING_JOB, candidateText: RESUME });
+    const details = improvementDetails({ ats, tailored });
+    assert.ok(details.gains.length >= 1 && details.gains.every(item => item.lost >= 0.5));
+    assert.deepEqual(details.gains, [...details.gains].sort((a, b) => b.lost - a.lost), 'biggest loss first');
+    assert.ok(details.specifics.noNumber.some(item => item.line.startsWith('Helped with reporting')));
+    assert.ok(details.specifics.thinRoles.length >= 1, 'a role with fewer than three bullets is named');
+    for (const list of Object.values(details.specifics)) assert.ok(list.length <= 4);
+});

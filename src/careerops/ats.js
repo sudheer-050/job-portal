@@ -148,4 +148,30 @@ async function optimizeForAts({ resumeText, job, profile = {}, rewrites = [], ta
     };
 }
 
-module.exports = { optimizeForAts, plainText, scoreAts };
+const clip = (line, max = 150) => (line.length > max ? `${line.slice(0, max - 1)}…` : line);
+
+/**
+ * Where an ATS score loses points and what the person can do about it, in plain terms. Pure: it only reads the
+ * score and the tailored resume, so the advice always matches the numbers.
+ */
+function improvementDetails({ ats, tailored }) {
+    const gains = ats.breakdown
+        .map(item => ({ group: item.group, label: item.label, lost: round1(item.max - item.points), detail: item.detail }))
+        .filter(item => item.lost >= 0.5)
+        .sort((a, b) => b.lost - a.lost)
+        .slice(0, 6);
+    const roles = tailored.experience || [];
+    const bulletsOf = entry => entry.bullets.map(line => ({ role: entry.header[0] || 'A role', line }));
+    const all = roles.flatMap(bulletsOf);
+    return {
+        gains,
+        specifics: {
+            noNumber: all.filter(item => !/[0-9]/.test(item.line)).slice(0, 4).map(item => ({ role: clip(item.role, 80), line: clip(item.line) })),
+            noActionVerb: all.filter(item => !ACTION_START.test(item.line)).slice(0, 4).map(item => ({ role: clip(item.role, 80), line: clip(item.line) })),
+            thinRoles: roles.filter(entry => entry.bullets.length < 3).map(entry => clip(entry.header[0] || 'A role', 80)),
+            firstPerson: all.filter(item => FIRST_PERSON.test(item.line)).slice(0, 3).map(item => ({ role: clip(item.role, 80), line: clip(item.line) })),
+        },
+    };
+}
+
+module.exports = { improvementDetails, optimizeForAts, plainText, scoreAts };
