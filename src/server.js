@@ -353,7 +353,7 @@ function requireAuth(req, res, next) {
     }
 }
 
-const { renderDocument } = require('./documents/export');
+const { pageCount, renderDocument } = require('./documents/export');
 const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 
 async function hagentCli(argv) {
@@ -404,6 +404,7 @@ async function completedHagentOutput(issueId) {
 function applicationPrompt(job, resumeText, profile = {}, answers = []) {
     return [
         'Tailor the source resume for this exact job without inventing or upgrading any fact.',
+        'HARD RULE: the tailored resume must fit on ONE page (about 450 to 550 words). Keep 3 to 4 bullets for the newest role and 1 to 3 for older ones, drop the least relevant content instead of shrinking it, and never add anything that is not in the source resume.',
         'Return exactly one JSON object in a ```json fenced block with this schema:',
         '{"resume_markdown":"string","cover_letter":"string","alignment_summary":"string","keywords_used":[],"factual_changes":[],"missing_requirements":[],"submission_recommendation":"PASS|NEEDS_REVIEW"}',
         '', `JOB TITLE: ${job.title}`, `COMPANY: ${job.company || 'Not listed'}`,
@@ -512,7 +513,7 @@ async function syncApplication(row) {
             const tailored = parseLastJson(output);
             if (!tailored?.resume_markdown) throw new Error('Recruiter output was not valid structured resume JSON.');
             const reviewPrompt = [
-                'Independently audit this tailored resume for truthfulness, relevance, clarity, and ATS readability.',
+                'Independently audit this tailored resume for truthfulness, relevance, clarity, and ATS readability. It must fit on one page (about 550 words at most): fail it if it is longer.',
                 'Return exactly one JSON object in a ```json fenced block with this schema:',
                 '{"verdict":"PASS|FAIL","score":0,"unsupported_claims":[],"missing_requirements":[],"notes":"string"}',
                 '', 'SOURCE RESUME:', String(row.resume_text || '').slice(0, 24000),
@@ -893,23 +894,36 @@ async function syncPendingApplications(username) {
 const REWRITE_AFTER_MINUTES = 30;
 const REWRITE_FAILED = 'Automatic rewrite failed';
 const applicationsBeingRewritten = new Set();
-const needsRewrite = row => (row.status === 'needs_review' && !String(row.error || '').startsWith(REWRITE_FAILED))
+// Hard rule: a resume is one page. Pages are measured with the same layout the PDF uses; the result is remembered per draft.
+const pageCache = new Map();
+function resumePagesOf(row) {
+    if (!row.tailored_resume) return null;
+    const key = `${row.id}:${row.resume_version}:${String(row.tailored_resume).length}`;
+    if (!pageCache.has(key)) {
+        try { pageCache.set(key, pageCount(String(row.tailored_resume))); } catch (_) { pageCache.set(key, null); }
+        if (pageCache.size > 5000) pageCache.delete(pageCache.keys().next().value);
+    }
+    return pageCache.get(key);
+}
+const tooLong = row => row.status === 'ready_to_submit' && row.resumePages > 1 && !String(row.error || '').startsWith(REWRITE_FAILED);
+const needsRewrite = row => tooLong(row) || (row.status === 'needs_review' && !String(row.error || '').startsWith(REWRITE_FAILED))
     || (['tailoring', 'verifying'].includes(row.status) && Date.now() - new Date(row.updated_at).getTime() > REWRITE_AFTER_MINUTES * 60000 && !String(row.error || '').startsWith(REWRITE_FAILED));
 
 async function autoRewriteApplications(username) {
     if (!careerOps) return;
     const rows = (await pool.query(
-        `SELECT id,status,error,updated_at,quality_score FROM job_applications
-         WHERE username=$1 AND status IN ('needs_review','tailoring','verifying') ORDER BY updated_at LIMIT 60`, [username]
-    )).rows.filter(row => needsRewrite(row) && !applicationsBeingRewritten.has(row.id) && !applicationsBeingSynced.has(row.id));
+        `SELECT id,status,error,updated_at,quality_score,tailored_resume,resume_version FROM job_applications
+         WHERE username=$1 AND status IN ('needs_review','tailoring','verifying','ready_to_submit') ORDER BY updated_at LIMIT 80`, [username]
+    )).rows.map(row => ({ ...row, resumePages: resumePagesOf(row) })).filter(row => needsRewrite(row) && !applicationsBeingRewritten.has(row.id) && !applicationsBeingSynced.has(row.id));
     let rewritten = 0;
     for (const row of rows) {
         applicationsBeingRewritten.add(row.id);
         try {
-            const reason = row.status === 'needs_review'
-                ? `Hagent's review${row.quality_score != null ? ` scored it ${row.quality_score}/100 and` : ''} asked for changes`
-                : 'Hagent had not finished it';
-            await careerOps.rewriteApplication(username, row.id, reason);
+            const reason = row.status === 'ready_to_submit' ? `its resume ran to ${row.resumePages} pages and a resume must be one page`
+                : row.status === 'needs_review'
+                    ? `Hagent's review${row.quality_score != null ? ` scored it ${row.quality_score}/100 and` : ''} asked for changes`
+                    : 'Hagent had not finished it';
+            await careerOps.rewriteApplication(username, row.id, reason, { includeReady: true });
             rewritten += 1;
         } catch (error) {
             await pool.query('UPDATE job_applications SET error=$2 WHERE id=$1 AND username=$3', [row.id, `${REWRITE_FAILED}: ${error.message}`.slice(0, 500), username]).catch(() => {});
@@ -947,11 +961,13 @@ app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
     const processingOf = row => !['needs_review', 'tailoring', 'verifying'].includes(row.status) ? null
         : (applicationsBeingRewritten.has(row.id) || needsRewrite(row)) ? 'rewriting'
         : row.status === 'tailoring' || applicationsBeingSynced.has(row.id) ? 'preparing' : row.status === 'verifying' ? 'reviewing' : null;
-    const withProcessing = rows.map(row => ({ ...row, processing: processingOf(row) }));
+    const withPages = rows.map(row => ({ ...row, resumePages: resumePagesOf(row) }));
+    const processingOfRow = row => (tooLong(row) && !applicationsBeingSynced.has(row.id)) ? 'rewriting' : processingOf(row);
+    const withProcessing = withPages.map(row => ({ ...row, processing: processingOfRow(row) }));
     const scoring = !!careerOps?.isScoring(req.jobUsername);
     const syncing = rows.some(row => ['tailoring', 'verifying'].includes(row.status));
     if (syncing) syncPendingApplications(req.jobUsername).catch(error => console.error('application sync failed:', error.message));
-    const rewriting = rows.some(needsRewrite);
+    const rewriting = withPages.some(needsRewrite);
     if (rewriting) autoRewriteApplications(req.jobUsername).catch(error => console.error('application rewrite failed:', error.message));
     res.json({ applications: withProcessing, working: syncing || rewriting || scoring, scoring });
 }));

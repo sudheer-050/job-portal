@@ -7,6 +7,7 @@
 
 const { countTerm, extractKeywords } = require('./keywords');
 const { DATE_RANGE, tailorResume } = require('./resume');
+const { describeRemoval, fitToPages } = require('./onepage');
 
 const LEVEL_WORDS = new Set(['senior', 'junior', 'lead', 'staff', 'principal', 'sr', 'jr', 'associate', 'head', 'chief', 'intern', 'i', 'ii', 'iii', 'iv']);
 const ACTION_START = /^(?:[A-Z][a-z]+ed|Built|Led|Wrote|Ran|Drove|Made|Grew|Cut|Won|Taught|Led|Led|Chose|Began|Sold|Set|Held|Kept|Spoke|Oversaw|Undertook|Rebuilt|Rewrote|Redesigned|Developed|Delivered|Saved|Shipped|Launched)\b/;
@@ -72,8 +73,9 @@ function scoreAts({ tailored, job = {}, candidateText = '' }) {
     const actionRatio = bullets.length ? bullets.filter(line => ACTION_START.test(line)).length / bullets.length : 0;
     add('Quality', 'Bullets start with action verbs', 4 * Math.min(1, actionRatio / 0.8), 4, `${Math.round(actionRatio * 100)}%`, { severity: 'low', text: 'Many bullets do not start with an action verb.', fix: 'Start bullets with verbs such as “Built”, “Reduced”, “Automated”.' });
     const words = text.split(/\s+/).filter(Boolean).length;
-    const lengthPoints = words >= 300 && words <= 900 ? 3 : (words >= 200 && words < 300) || (words > 900 && words <= 1100) ? 1.5 : 0;
-    add('Quality', 'Length (300–900 words)', lengthPoints, 3, `${words} words`, { severity: 'low', text: words < 300 ? 'The resume is short for an ATS to judge.' : 'The resume is long; trim to the most relevant content.', fix: words < 300 ? 'Add real detail to your source resume.' : 'Remove older or less relevant content.' });
+    // A resume is one page, which is about 250 to 600 words. Longer is not better here, so anything from 200 to 700 words is full marks.
+    const lengthPoints = words >= 200 && words <= 700 ? 3 : (words >= 150 && words < 200) || (words > 700 && words <= 900) ? 1.5 : 0;
+    add('Quality', 'Length (one page, 200–700 words)', lengthPoints, 3, `${words} words`, { severity: 'low', text: words < 200 ? 'The resume is very short for an ATS to judge.' : 'The resume is longer than one page of text.', fix: words < 200 ? 'Add real detail to your source resume.' : 'Remove older or less relevant content so it fits on one page.' });
     const clean = !bullets.some(line => FIRST_PERSON.test(line));
     add('Quality', 'No first-person wording', clean ? 2 : 0, 2, clean ? 'Clean' : 'First person found', { severity: 'low', text: 'Bullets use first-person wording.', fix: 'Rewrite bullets without “I”, “my” or “we”.' });
     add('Quality', 'Summary present', tailored.summary ? 1 : 0, 1, tailored.summary ? 'Yes' : 'No', null);
@@ -111,6 +113,12 @@ async function optimizeForAts({ resumeText, job, profile = {}, rewrites = [], ta
     let best = null;
     const attempt = (label, options, extraRewrites = rewrites) => {
         const built = tailorResume({ resumeText, job, profile, rewrites: extraRewrites, ...options });
+        // Hard rule: one page. Only removes content, so the fact check above still holds.
+        const fitted = fitToPages(built.tailored, { pages: 1 });
+        built.tailored = fitted.tailored;
+        built.pages = fitted.pages;
+        if (fitted.removed.length) built.changes = [...built.changes, describeRemoval(fitted.removed)];
+        if (!fitted.fits) built.warnings = [...built.warnings, 'This resume still runs past one page after removing everything that could be left out. Shorten your name line, contact details or education in your source resume.'];
         const ats = scoreAts({ tailored: built.tailored, job, candidateText });
         rounds.push({ label, score: ats.score, factCheckOk: built.factCheck.ok });
         const result = { label, options, built, ats };

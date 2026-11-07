@@ -248,8 +248,12 @@ function wrapRuns(runs, style, maxWidth) {
     return lines;
 }
 
-function toPdf(markdown, { title = 'Document' } = {}) {
-    const page = { width: 612, height: 792, margin: 54 };
+const PAGE = { width: 612, height: 792, margin: 54 };
+
+/** Lay the document out. `reserve` points are kept free at the bottom of every page (a safety margin for other programs). */
+function layoutPages(markdown, reserve = 0) {
+    const page = PAGE;
+    const bottom = page.margin + reserve;
     const pages = [[]];
     let y = page.height - page.margin;
     const newPage = () => { pages.push([]); y = page.height - page.margin; };
@@ -261,10 +265,10 @@ function toPdf(markdown, { title = 'Document' } = {}) {
         const leading = style.size * style.lead;
         // keep a heading together with the first line of what follows
         const needed = style.before + leading * (block.type.startsWith('h') ? 2 : Math.min(lines.length, 2));
-        if (y - needed < page.margin) newPage();
+        if (y - needed < bottom) newPage();
         y -= style.before;
         lines.forEach((line, index) => {
-            if (y - leading < page.margin) newPage();
+            if (y - leading < bottom) newPage();
             y -= leading;
             const ops = pages[pages.length - 1];
             if (block.type === 'bullet' && index === 0) ops.push(`BT /F1 ${style.size} Tf ${page.margin + 2} ${y.toFixed(2)} Td (\\225) Tj ET`);
@@ -292,6 +296,17 @@ function toPdf(markdown, { title = 'Document' } = {}) {
         y -= style.after;
     }
 
+    return pages;
+}
+
+/** How many pages the document takes. Used to hold a resume to one page. */
+function pageCount(markdown, { reserve = 0 } = {}) {
+    return layoutPages(markdown, reserve).length;
+}
+
+function toPdf(markdown, { title = 'Document' } = {}) {
+    const page = PAGE;
+    const pages = layoutPages(markdown);
     // objects: 1 catalog, 2 page tree, 3-5 fonts, then a page + content stream per page, then the info dictionary
     const objects = [];
     const add = body => { objects.push(body); return objects.length; };
@@ -350,4 +365,4 @@ function renderDocument({ markdown, format = 'md', baseName = 'document', title 
     return { buffer, contentType: spec.contentType, filename: `${name}.${spec.extension}` };
 }
 
-module.exports = { FORMATS, HELVETICA, HELVETICA_BOLD, crc32, parseMarkdown, renderDocument, safeFilename, textWidth, toDocx, toPdf, toWinAnsi, zipStore };
+module.exports = { pageCount, FORMATS, HELVETICA, HELVETICA_BOLD, crc32, parseMarkdown, renderDocument, safeFilename, textWidth, toDocx, toPdf, toWinAnsi, zipStore };
