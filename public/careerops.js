@@ -261,7 +261,7 @@
     function renderResumeOut(r) {
         var ok = r.factCheck.ok;
         var html = atsHtml(r.ats) + skillsAskHtml(r) + '<div class="co-hero"><div class="co-score ' + scoreClass(r.score) + '"><strong>' + r.score.toFixed(1) + '</strong><span>job fit</span></div><div class="co-verdict"><h3>' + esc(r.verdict.label) + '</h3><p>' + esc(r.verdict.text) + '</p>' +
-            '<div class="co-chips">' + chip(ok ? 'Fact check passed' : 'Fact check failed', ok ? 'ok' : 'bad') + (r.coverage != null ? chip('CV match ' + r.coverage + '%', r.coverage >= 95 ? 'ok' : 'warn') : '') + (r.keywords.featured.length ? chip('Featured: ' + r.keywords.featured.join(', '), 'brand') : '') + '</div></div></div>';
+            '<div class="co-chips">' + chip(ok ? 'Fact check passed' : 'Fact check failed', ok ? 'ok' : 'bad') + (r.coverage != null ? chip('CV match ' + r.coverage + '%', r.coverage >= 95 ? 'ok' : 'warn') : '') + (r.pages ? chip(r.pages === 1 ? '1 page' : r.pages + ' pages', r.pages === 1 ? 'ok' : 'bad') : '') + (r.keywords.featured.length ? chip('Featured: ' + r.keywords.featured.join(', '), 'brand') : '') + '</div></div></div>';
         if (!ok) html += '<div class="co-card"><h4>Lines not found in your source resume</h4>' + list(r.factCheck.unsupported.map(function (u) { return u.where + ': ' + u.line; })) + '</div>';
         if (r.warnings.length) html += '<div class="co-card"><h4>Notes</h4>' + list(r.warnings) + '</div>';
         if (r.changes.length) html += '<div class="co-card"><h4>What changed from your source resume</h4>' + list(r.changes) + '</div>';

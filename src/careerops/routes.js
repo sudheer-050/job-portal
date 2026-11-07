@@ -8,7 +8,7 @@ const { checkLiveness } = require('./liveness');
 const { buildCoverLetter, renderHtml, renderMarkdown, tailorResume } = require('./resume');
 const { aiConfig, suggestRewrites } = require('./rewrite');
 const { improvementDetails, optimizeForAts } = require('./ats');
-const { renderDocument } = require('../documents/export');
+const { pageCount, renderDocument } = require('../documents/export');
 const { applyConfirmedSkills } = require('./confirm');
 const { mergeSkills } = require('../profile/sources');
 const { acceptBulkSkills, rememberedUsedFor, visibleGaps } = require('./remembered');
@@ -84,7 +84,7 @@ function buildPayload({ job, evaluation, built, ats, cover }) {
         jobId: job.id, job: { title: job.title, company: job.company },
         score: evaluation.score, verdict: evaluation.verdict, coverage: evaluation.meta.coverage,
         resume: { structured: built.tailored, markdown: renderMarkdown(built.tailored), html: renderHtml(built.tailored) },
-        coverLetter: cover, changes: built.changes, factCheck: built.factCheck, keywords: built.keywords, warnings: built.warnings,
+        coverLetter: cover, changes: built.changes, factCheck: built.factCheck, keywords: built.keywords, warnings: built.warnings, pages: built.pages,
         appliedRewrites: built.appliedRewrites, rejectedRewrites: built.rejectedRewrites, ats,
         generatedAt: new Date().toISOString(),
     };
@@ -572,6 +572,8 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         const job = toJob(posting.rows[0]);
         const { payload, ats } = await prepareDocuments(username, job, ctx);
         if (!payload.factCheck.ok) throw httpError(422, 'The rewritten resume did not pass the fact check, so it was not used.');
+        // Hard rule: a resume is one page. A draft that cannot be brought to one page is not swapped in (the old one stays and the reason is shown).
+        if (pageCount(payload.resume.markdown) > 1) throw httpError(422, 'Even after leaving out everything that can go, this resume does not fit on one page. Shorten the header, contact or education lines in your source resume.');
         const notes = JSON.stringify({
             source: 'career-ops',
             rewrittenFrom: { status: row.status, previousScore: row.quality_score, reason },
