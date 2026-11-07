@@ -9,6 +9,8 @@ const { buildCoverLetter, renderHtml, renderMarkdown, tailorResume } = require('
 const { aiConfig, suggestRewrites } = require('./rewrite');
 const { optimizeForAts } = require('./ats');
 const { applyConfirmedSkills } = require('./confirm');
+const { mergeSkills } = require('../profile/sources');
+const { rememberedUsedFor } = require('./remembered');
 const { alertsFromPipeline, summarizeEvaluation, summaryFromRow } = require('./flow');
 const { analyzePatterns, canonicalState, nextFollowUp } = require('./tracker');
 
@@ -42,6 +44,15 @@ const SCHEMA = `
         sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS job_followups_user_job_idx ON job_followups (username, job_id, sent_at);
+    -- Skills the person said they have. Remembered so later jobs that ask for them use them automatically.
+    CREATE TABLE IF NOT EXISTS job_confirmed_skills (
+        username VARCHAR(20) NOT NULL REFERENCES job_users(username) ON DELETE CASCADE,
+        skill_key TEXT NOT NULL,
+        skill TEXT NOT NULL,
+        job_id TEXT,
+        confirmed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (username, skill_key)
+    );
 `;
 
 function toJob(row) {
@@ -96,17 +107,27 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
     // Every Career Ops route waits for its tables to exist.
     app.use(BASE, (_req, _res, next) => { schemaReady.then(() => next(), next); });
 
+    async function rememberedSkills(username) {
+        const result = await pool.query('SELECT skill, confirmed_at AS "confirmedAt" FROM job_confirmed_skills WHERE username=$1 ORDER BY confirmed_at DESC', [username]);
+        return result.rows;
+    }
+
+    // Everything Career Ops knows about the person. Skills they confirmed before are folded into their skills,
+    // so every evaluation, scan, resume and application uses them without asking again.
     async function context(username) {
-        const [profile, roles, resume] = await Promise.all([
+        const [profile, roles, resume, remembered] = await Promise.all([
             pool.query('SELECT * FROM job_profiles WHERE username=$1', [username]),
             pool.query('SELECT role FROM job_roles WHERE username=$1', [username]),
             pool.query('SELECT resume_text FROM resumes WHERE username=$1', [username]),
+            rememberedSkills(username),
         ]);
         const row = profile.rows[0] || {};
+        const names = remembered.map(item => item.skill);
         return {
-            profile: { ...row, remote_pref: row.work_style || 'any', experience_years: row.experience_years },
+            profile: { ...row, skills: mergeSkills(row.skills, names, 100000).skills, remote_pref: row.work_style || 'any', experience_years: row.experience_years },
             roles: roles.rows.map(item => item.role),
             resumeText: resume.rows[0]?.resume_text || '',
+            remembered: names,
         };
     }
 
@@ -202,7 +223,7 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
     // Tailored resume + cover letter from the user's own resume. Draft only; nothing is submitted.
     app.post(`${BASE}/resume`, requireAuth, asyncRoute(async (req, res) => {
         await ready;
-        const { profile: savedProfile, roles, resumeText } = await context(req.jobUsername);
+        const { profile: savedProfile, roles, resumeText, remembered } = await context(req.jobUsername);
         if (!resumeText) return res.status(400).json({ error: 'Upload your source resume first — tailored resumes are built only from it.' });
         let job = req.body?.jobId ? await loadJob(req.body.jobId) : pastedJob(req.body || {});
         if (!job) return res.status(req.body?.jobId ? 404 : 400).json({ error: req.body?.jobId ? 'That job is no longer available.' : 'Provide a job title and job description.' });
@@ -211,11 +232,13 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         const stated = applyConfirmedSkills({ requested: req.body?.confirmedSkills, job, profile: savedProfile });
         if (stated.rejected.length) return res.status(400).json({ error: `These are not skills this job asks for: ${stated.rejected.join(', ')}.` });
         const profile = stated.profile;
-        if (stated.confirmed.length && req.body?.saveToProfile === true) {
+        // Remember what they confirmed so it is reused for any later job that asks for it.
+        if (stated.confirmed.length) {
             await pool.query(
-                `INSERT INTO job_profiles (username, skills) VALUES ($1,$2)
-                 ON CONFLICT (username) DO UPDATE SET skills=EXCLUDED.skills, updated_at=now()`,
-                [req.jobUsername, profile.skills]
+                `INSERT INTO job_confirmed_skills (username, skill_key, skill, job_id)
+                 SELECT $1, lower(s), s, $3 FROM unnest($2::text[]) AS s
+                 ON CONFLICT (username, skill_key) DO NOTHING`,
+                [req.jobUsername, stated.confirmed, job.id || null]
             );
         }
         const evaluation = evaluateOffer({ job, profile, roles, resumeText });
@@ -232,14 +255,30 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         const payload = buildPayload({ job, evaluation, built, ats, cover });
         if (stated.confirmed.length) {
             payload.confirmedSkills = stated.confirmed;
-            payload.changes = [`Added to Skills because you confirmed you have them: ${stated.confirmed.join(', ')}.${req.body?.saveToProfile === true ? ' Saved to your profile.' : ''}`, ...payload.changes];
-            if (stated.skipped.length) payload.warnings = [`Your profile skills list is full, so these were not saved: ${stated.skipped.join(', ')}.`, ...payload.warnings];
+            payload.changes = [`Added to Skills because you confirmed you have them: ${stated.confirmed.join(', ')}. Remembered, so any later job that asks for them uses them automatically.`, ...payload.changes];
+        }
+        const reused = rememberedUsedFor({ remembered, job, resumeText, confirmedNow: stated.confirmed });
+        if (reused.length) {
+            payload.rememberedUsed = reused;
+            payload.changes = [`Used skills you confirmed on earlier jobs: ${reused.join(', ')}.`, ...payload.changes];
         }
         if (job.id) {
             await persist(req.jobUsername, job, evaluation);
             await pool.query('UPDATE job_evaluations SET tailored=$3::jsonb, updated_at=now() WHERE username=$1 AND job_id=$2', [req.jobUsername, job.id, JSON.stringify(payload)]);
         }
         res.json(payload);
+    }));
+
+    // The skills the person has confirmed, so they can see and remove what is remembered.
+    app.get(`${BASE}/skills`, requireAuth, asyncRoute(async (req, res) => {
+        res.json({ skills: await rememberedSkills(req.jobUsername) });
+    }));
+
+    app.delete(`${BASE}/skills/:skill`, requireAuth, asyncRoute(async (req, res) => {
+        const key = String(req.params.skill || '').trim().toLowerCase();
+        const result = await pool.query('DELETE FROM job_confirmed_skills WHERE username=$1 AND skill_key=$2', [req.jobUsername, key]);
+        if (!result.rowCount) return res.status(404).json({ error: 'That skill is not in your confirmed list.' });
+        res.json({ removed: key });
     }));
 
     app.get(`${BASE}/ai`, requireAuth, (_req, res) => {
@@ -501,7 +540,7 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         }
     }));
 
-    return { createPreparedApplication, dashboardStats, evaluateJobForUser, schemaReady, syncAlerts };
+    return { createPreparedApplication, dashboardStats, evaluateJobForUser, rememberedSkills: async username => (await rememberedSkills(username)).map(item => item.skill), schemaReady, syncAlerts };
 }
 
 module.exports = { SCHEMA, pastedJob, registerCareerOps, toJob };
