@@ -1,6 +1,6 @@
 {
   "name": "job-portal",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "private": false,
   "description": "Self-hosted personalized job search portal with multi-source collection and explainable matching.",
   "main": "src/server.js",

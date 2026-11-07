@@ -1,18 +1,22 @@
 # Release notes
 
-**Document version:** 3.3.0
+**Document version:** 3.4.0
 
 **Level:** Stable
 
 **Last reviewed:** 2026-11-06
 
-## Unreleased — Profile sources and a clearer dashboard
+## 3.4.0 — Profile sources, Career Ops in every step, forgot password
+
+Released 2026-11-06.
+
+### Profile sources and a clearer dashboard
 
 - **Keep your profile up to date:** suggest projects, experience and skills from your public GitHub repositories (your own, non-fork), your portfolio website, and your LinkedIn data export. Suggestions wait in a review list; nothing reaches your resume or skills until you approve it, dismissed items never return, and approved items create a new resume version that Career Ops uses on its next scan. GitHub and the portfolio are checked about weekly (switch-off available) with a quiet notification when something new appears. New endpoints under `/api/jobs/profile-sources`; new tables `job_profile_sources` and `job_source_findings`; optional `GITHUB_TOKEN`.
 - **Dashboard tiles:** the KPI strip now lines up exactly with the content below it (it was inset twice), uses equal-size tiles that divide evenly at every width (8, then 4 + 4, then 2 × 4), and each tile links to its section. Two Career Ops tiles were added: **Strong matches** (4.0+ jobs you have not started) and **Follow-ups due**.
 - Fixed a phone-width overflow in the Profile view.
 
-## Unreleased — Career Ops inside the portal's steps
+### Career Ops inside the portal's steps
 
 - **Discover:** matches are scanned automatically against your resume; each job card shows its Career Ops score, verdict, legitimacy and CV coverage, with sorting by score and an option to hide jobs below 4.0 or flagged as suspicious.
 - **Tailor & apply:** a check before applying warns about low-fit or suspicious jobs (Cancel is the default; "Apply anyway" is always available). Strong jobs proceed with no extra click.
@@ -24,7 +28,7 @@
 - **Apply & track tab:** apply to one job from start to finish (check, prepare, start, open the employer page, mark applied) with a follow-up reminder afterwards. New endpoint `POST /api/jobs/careerops/apply`.
 - Application rows from Career Ops show "ATS n/100" and link to the print-ready resume.
 
-## Unreleased — Forgot password
+### Forgot password
 
 - Added a **Forgot password?** link to the log-in page with a secure email reset flow: single-use 30-minute tokens (only a hash is stored), identical responses for every input, per-IP and per-account limits, and a standalone `/jobs/reset` page that keeps the token in the URL fragment.
 - Added SMTP settings (`SMTP_*`, `PUBLIC_BASE_URL`) to the compose files and `.env.example`. Without SMTP no email is sent; `PASSWORD_RESET_LOG_LINKS=true` prints links to the server log for owner-assisted resets.
