@@ -171,7 +171,10 @@ function registerPasswordReset(app, { pool, ready, env = process.env, logger = c
     });
 
     app.get(['/jobs/reset', '/jobs/reset/'], (_req, res) => {
-        res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+        const headers = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' };
+        // the main app stamps script links with the build id; a bare app (tests) serves the file as is
+        if (res.app.locals.sendPage) return res.app.locals.sendPage(res, 'reset.html', headers);
+        res.set(headers);
         res.sendFile(path.join(__dirname, '..', '..', 'public', 'reset.html'));
     });
 }
