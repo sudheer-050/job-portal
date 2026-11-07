@@ -820,6 +820,9 @@
             } catch (err) { messagesContainer.innerHTML = `<span class="source-status">${escapeHtml(err.message)}</span>`; }
         }
 
+        // "Resume v2 ▾" opens PDF / Word / Markdown. Plain links, so they work without script and keep the right file name.
+        const downloadMenu = (label, base) => `<details class="download-menu"><summary class="btn btn-ghost">${label} <span aria-hidden="true">▾</span></summary><div class="download-options"><a href="${base}?format=pdf">PDF</a><a href="${base}?format=docx">Word (.docx)</a><a href="${base}?format=md">Markdown (.md)</a></div></details>`;
+        document.addEventListener('click', event => { document.querySelectorAll('details.download-menu[open]').forEach(menu => { if (!menu.contains(event.target)) menu.open = false; }); });
         const appSkillMessages = {};
         const improveOpen = {};
         const improveData = {};
@@ -899,8 +902,8 @@
                     ${String(item.quality_notes || '').startsWith('{"source":"career-ops"') ? '<div class="source-status">Prepared by Career Ops: resume and cover letter are drafts for you to review. Nothing is sent until you apply on the employer\x27s site.</div>' : ''}
                     <div class="application-actions">
                         ${item.coHasResume ? `<a class="btn btn-ghost" href="/api/jobs/careerops/resume/${encodeURIComponent(item.job_id)}/html" target="_blank" rel="noopener">Print-ready resume</a>` : ''}
-                        ${item.tailored_resume ? `<a class="btn btn-ghost" href="/api/jobs/applications/${item.id}/resume">Resume v${item.resume_version || 1}</a>` : ''}
-                        ${item.cover_letter ? `<a class="btn btn-ghost" href="/api/jobs/applications/${item.id}/cover-letter">Cover letter v${item.cover_letter_version || 1}</a>` : ''}
+                        ${item.tailored_resume ? downloadMenu(`Download resume v${item.resume_version || 1}`, `/api/jobs/applications/${item.id}/resume`) : ''}
+                        ${item.cover_letter ? downloadMenu(`Download cover letter v${item.cover_letter_version || 1}`, `/api/jobs/applications/${item.id}/cover-letter`) : ''}
                         <a class="btn btn-ghost" href="${escapeHtml(item.applyUrl)}" target="_blank" rel="noopener noreferrer">Open application / track</a>
                         ${item.status !== 'applied' ? `<button type="button" class="btn btn-ghost" data-app-improve="${escapeHtml(item.job_id)}" aria-expanded="${improveOpen[item.job_id] ? 'true' : 'false'}">${improveOpen[item.job_id] ? 'Hide' : 'How to improve this score'}</button>` : ''}
                         ${item.status === 'needs_review' ? `<button type="button" class="btn btn-ghost" data-app-rewrite="${item.id}" title="Replace this draft with a fact-checked Career Ops one">Rewrite with Career Ops</button>` : ''}

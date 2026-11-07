@@ -34,6 +34,31 @@
         else { button.textContent = button.dataset.label || button.textContent; button.disabled = false; }
     }
 
+    // A Download menu for the resume or the cover letter on screen. Exporting uses the text as shown, so edits are kept.
+    function exportMenu(kind) {
+        return '<details class="download-menu"><summary class="btn btn-ghost btn-small">Download <span aria-hidden="true">\u25be</span></summary><div class="download-options">' +
+            ['pdf:PDF', 'docx:Word (.docx)', 'md:Markdown (.md)'].map(function (entry) { var p = entry.split(':'); return '<button type="button" data-co-export="' + kind + ':' + p[0] + '">' + p[1] + '</button>'; }).join('') + '</div></details>';
+    }
+
+    function exportDocument(kind, format, button) {
+        var field = document.getElementById(kind === 'cover' ? 'coCoverText' : 'coResumeText');
+        var job = (state.resume && state.resume.job) || {};
+        var menu = button.closest('details'); if (menu) menu.open = false;
+        showError('');
+        fetch(API + '/export', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: kind, format: format, markdown: field ? field.value : '', title: job.title || '', company: job.company || '' }) })
+            .then(function (res) {
+                if (!res.ok) return res.json().catch(function () { return {}; }).then(function (data) { throw new Error(data.error || 'The download failed.'); });
+                var named = (res.headers.get('Content-Disposition') || '').match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+                return res.blob().then(function (blob) { return { blob: blob, name: named ? decodeURIComponent(named[1] || named[2]) : 'document.' + format }; });
+            })
+            .then(function (file) {
+                var url = URL.createObjectURL(file.blob);
+                var a = document.createElement('a'); a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+            })
+            .catch(function (error) { showError(error.message); });
+    }
+
     function copy(text, button) {
         var done = function () { if (button) { var old = button.textContent; button.textContent = 'Copied'; setTimeout(function () { button.textContent = old; }, 1400); } };
         try { navigator.clipboard.writeText(text).then(done, function () {}); } catch (_) { /* clipboard unavailable */ }
@@ -247,10 +272,10 @@
         }
         html += '<div class="co-card"><h4>Tailored resume</h4><div class="co-row" style="margin-top:6px">' +
             '<button type="button" class="btn btn-ghost btn-small" id="coCopyResume">Copy</button>' +
-            '<button type="button" class="btn btn-ghost btn-small" id="coDownloadHtml">Download HTML</button>' +
+            exportMenu('resume') +
             (r.jobId ? '<a class="btn btn-primary btn-small" target="_blank" rel="noopener" href="' + API + '/resume/' + encodeURIComponent(r.jobId) + '/html">Open print-ready (Save as PDF)</a>' : '') +
             '</div><textarea id="coResumeText" readonly rows="16"></textarea><p class="co-note">Single column, standard headings, no tables or graphics — parsed cleanly by applicant tracking systems.</p></div>';
-        html += '<div class="co-card"><h4>Cover letter draft</h4><p class="co-note">' + esc(r.coverLetter.draftNotice) + '</p><div class="co-row" style="margin-top:6px"><button type="button" class="btn btn-ghost btn-small" id="coCopyCover">Copy</button></div><textarea id="coCoverText" rows="14"></textarea></div>' +
+        html += '<div class="co-card"><h4>Cover letter draft</h4><p class="co-note">' + esc(r.coverLetter.draftNotice) + '</p><div class="co-row" style="margin-top:6px"><button type="button" class="btn btn-ghost btn-small" id="coCopyCover">Copy</button>' + exportMenu('cover') + '</div><textarea id="coCoverText" rows="14"></textarea></div>' +
             '<div class="co-row"><button type="button" class="btn btn-primary" id="coGoApply">Next: apply to this job &rarr;</button></div>';
         document.getElementById('coResumeOut').innerHTML = html;
         document.getElementById('coResumeText').value = r.resume.markdown;
@@ -323,7 +348,7 @@
             '<div class="co-chips">' + chip('Job fit ' + r.summary.score.toFixed(1) + '/5 · ' + r.summary.verdict, r.summary.score >= 4 ? 'ok' : 'warn') + chip('ATS ' + r.ats.score + '/100', r.ats.reached ? 'ok' : 'warn') + chip('Fact check passed', 'ok') + '</div>' +
             (r.ats.reached ? '' : '<p class="co-note">' + esc(r.ats.explanation) + '</p>') +
             '<ol class="co-steps-list">' +
-            '<li><strong>Review</strong> your documents: <a href="' + API + '/resume/' + encodeURIComponent(app.job_id) + '/html" target="_blank" rel="noopener">print-ready resume</a> · <a href="/api/jobs/applications/' + id + '/resume">resume (.md)</a> · <a href="/api/jobs/applications/' + id + '/cover-letter">cover letter (.md)</a>. Adjust them in step 2 if you want changes.</li>' +
+            '<li><strong>Review</strong> your documents: <a href="' + API + '/resume/' + encodeURIComponent(app.job_id) + '/html" target="_blank" rel="noopener">print-ready resume</a> · resume <a href="/api/jobs/applications/' + id + '/resume?format=pdf">PDF</a> · <a href="/api/jobs/applications/' + id + '/resume?format=docx">Word</a> · <a href="/api/jobs/applications/' + id + '/resume?format=md">Markdown</a>; cover letter <a href="/api/jobs/applications/' + id + '/cover-letter?format=pdf">PDF</a> · <a href="/api/jobs/applications/' + id + '/cover-letter?format=docx">Word</a> · <a href="/api/jobs/applications/' + id + '/cover-letter?format=md">Markdown</a>. Adjust them in step 2 if you want changes.</li>' +
             '<li><strong>Apply</strong> on the employer\'s site: ' + (url ? '<a class="btn btn-primary btn-small" target="_blank" rel="noopener noreferrer" href="' + esc(url) + '">Open employer application</a>' : '<span class="co-note">No link available for this posting.</span>') + '</li>' +
             '<li id="coTrackStep"><strong>Track</strong> it: once you have submitted, press <button type="button" class="btn btn-ghost btn-small" id="coMarkApplied" data-app="' + id + '">I applied</button>. A follow-up reminder appears in a week.</li>' +
             '</ol></div>';
@@ -450,6 +475,7 @@
     panel.addEventListener('click', function (event) {
         var t = event.target.closest('button');
         if (!t) return;
+        if (t.dataset.coExport) { var pick = t.dataset.coExport.split(':'); exportDocument(pick[0], pick[1], t); return; }
         if (t.id === 'coEvalBtn') runEvaluate(t);
         else if (t.id === 'coResumeBtn') { readDraft(); setTab('resume'); }
         else if (t.id === 'coStartBtn') startApplication(t, false);

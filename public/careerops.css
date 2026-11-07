@@ -187,3 +187,12 @@
 .improve-panel li { margin: 3px 0; }
 .improve-need { display: grid; gap: 10px; padding: 10px 12px; background: var(--bg-card-hover); border-radius: var(--radius-sm); }
 .improve-title { font-weight: 650; color: var(--accent-brand-ink); }
+
+/* ---- Download menus: choose PDF, Word or Markdown ---- */
+details.download-menu { position: relative; display: inline-block; }
+details.download-menu > summary { list-style: none; cursor: pointer; }
+details.download-menu > summary::-webkit-details-marker { display: none; }
+details.download-menu[open] > summary { border-color: var(--accent-brand); }
+.download-options { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 190px; display: grid; padding: 4px; background: #fff; border: 1px solid var(--border-color-soft); border-radius: var(--radius-md); box-shadow: var(--shadow-md); }
+.download-options a, .download-options button { display: block; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-normal); font: 500 13.5px var(--font-stack); text-align: left; text-decoration: none; cursor: pointer; }
+.download-options a:hover, .download-options button:hover, .download-options a:focus-visible, .download-options button:focus-visible { background: var(--bg-subtle); outline: none; }
