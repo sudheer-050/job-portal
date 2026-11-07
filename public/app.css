@@ -145,7 +145,7 @@ input[type="checkbox"] { accent-color: var(--accent-brand); }
 .app-shell.menu-collapsed { grid-template-columns: 68px minmax(0, 1fr); }
 .main-col { min-width: 0; }
 .sidebar {
-    position: sticky; top: 72px; display: flex; flex-direction: column; min-height: calc(100vh - 96px); max-height: calc(100vh - 96px);
+    position: sticky; top: 72px; display: flex; flex-direction: column; min-height: calc(100vh - 88px); max-height: calc(100vh - 88px);
     overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 10px;
     background: #fff; border: 1px solid var(--border-color-soft); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
 }
