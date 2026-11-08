@@ -1,12 +1,16 @@
 # Release notes
 
-**Document version:** 3.5.0
+**Document version:** 3.6.0
 
 **Level:** Stable
 
-**Last reviewed:** 2026-11-06
+**Last reviewed:** 2026-11-08
 
-## Unreleased — Larger dashboard strip, full-height sidebar, clearer application steps
+## 3.6.0 — Recruiter-ready resumes and applications that rewrite themselves
+
+Released 2026-11-08.
+
+### Larger dashboard strip, full-height sidebar, clearer application steps
 
 ### Recruiter rules for resumes and cover letters
 
@@ -17,6 +21,9 @@
 - Resume layout follows the one-page sample: dates against the right margin, coloured section headings, skills grouped under their own category labels when your resume has them.
 - Bullets with no number are listed as "[ADD METRIC]" questions for you to answer; nothing is ever filled in for you.
 - Jobs show how long ago they were posted, with an apply-soon hint for the first week. Existing drafts rebuild automatically.
+- **PDF resumes with unspaced bullets and glued dates are read correctly:** a resume exported by some PDF tools has bullets like "•Built" and dates joined to the location ("IndiaAug 2023"). The reader used to put bullets inside role headings and show roles with no bullets. It now reads every role, bullet, date, project, certification and skill category correctly.
+- **The headline comes from your own title line:** the part of the title line under your name that is closest to the job (for example "AI/ML Engineer & Analyst"), then up to three skills your resume spells out on its own. It is never an invented title, and it is kept even when no job skill matches.
+- **Removed:** two unattended auto-apply scripts that were committed by accident. Nothing is ever submitted to an employer without you.
 
 
 - **Career Ops remembers the skills you confirm:** when you say you have a missing skill on one job, it is stored (new table `job_confirmed_skills`) and used automatically for every later job that asks for it: evaluations, scans, CV match, ATS score, tailored resumes, applications and Discover ranking. The old "save to my profile" checkbox is gone because saving is now automatic. The built resume says which skills were reused from memory, and **Profile & resume → Skills you have confirmed** lists them with a **remove** link; removing one stops it being used. New endpoints `GET /api/jobs/careerops/skills` and `DELETE /api/jobs/careerops/skills/:skill`.
@@ -31,11 +38,11 @@
 - **Layout:** the KPI strip moved to the right, above the main content, and the sidebar now runs the full height of the window from the header down, instead of starting below the strip. On narrow screens the sidebar stacks above the strip as before.
 - **Dashboard tiles:** the five tiles are larger (bigger numbers and labels, taller) and are now one bar split into five equal sections with thin dividers, running edge to edge across the content area. Still one row at every width; below about 1,000px the bar scrolls sideways.
 
-## Unreleased — Missing skills where you can see them
+### Missing skills where you can see them
 
 - **Pick missing skills right on the row:** each application below 95% CV match now lists its missing skills with tick boxes directly under the Career Ops score, with **Add ticked skills to my resume** beside them; the CV match updates in place. The Discover check panel shows the same list open by default (it can still be collapsed). The Career Ops tab, when opened for a job, builds the resume straight away so its question is on screen.
 
-## Unreleased — Applications rewrite themselves
+### Applications rewrite themselves
 
 - **The experience section is read correctly:** a resume uploaded as a PDF has every line wrapped, and the reader mistook the wrapped lines for new jobs (for example "SQL, processing 1M+ records…" and "CLIs" became role headings), read your whole projects section as work experience because headings such as "PROJECTS & PORTFOLIO" and "CERTIFICATIONS & PROFESSIONAL DEVELOPMENT" were not recognised, and then dropped your real jobs to fit one page. The reader (new `src/careerops/parse.js`) now understands capitals-only headings, joins wrapped lines (including ones that start with a capital letter or an acronym, a blank line in the middle of a bullet, and a word split by a hyphen), finds each role from its dates, treats a lone word such as "License" at the end of a wrapped sentence as text and not a heading, reads projects and certifications as their own sections, and puts roles in date order by month. Every bullet of every role now stays, most relevant first, and the one-page rule alone decides what has to go (the summary is kept ahead of a role's third bullet; projects are ranked by how well they fit the job).
 - **Drafts built by the old reader are rebuilt automatically:** each Career Ops draft now records which version of the reader built it, and any draft that was not built by the current one is rebuilt from your stored resume text the next time you open Applications (shown as "Career Ops is rewriting", no re-upload needed). A rebuilt draft keeps its status and the reason it was rebuilt is recorded. Applications already marked Applied are never touched.
@@ -52,7 +59,7 @@
 - Function words from Dutch, German, French and Spanish postings (such as voor, niet, und, pour) are no longer treated as skills.
 - **Automatic rewrite:** an application that failed Hagent's review (needs review), or that Hagent has not finished after 30 minutes, is rewritten by Career Ops in the background the next time the Applications list loads. The new resume and cover letter use the same fact check as any other Career Ops draft; only a draft that passes replaces the old one, and the application moves to **Ready to submit** (resume and cover letter versions go up by one). Nothing is ever submitted automatically. Rows say they were rewritten and why, one notification summarises a batch, and an application that cannot be rewritten (for example no resume uploaded) shows the reason once and is not retried. Applications waiting on a login or CAPTCHA are left alone. A **Rewrite with Career Ops** button on Needs you rows does it on demand (POST /api/jobs/applications/:id/rewrite).
 
-## Unreleased — Separate application tabs
+### Separate application tabs
 
 - **Applications now has four tabs:** **Preparing**, **Ready to submit**, **Needs you** and **Applied**, each with a count. They replace the combined "Preparing / ready" tab, so what is waiting for you is no longer mixed with what is still being prepared. The dashboard tiles open the matching tab, and the old "Showing only" filter line is gone.
 
