@@ -9,6 +9,7 @@ const { READER_VERSION, buildCoverLetter, parseResume, readingIssues, renderHtml
 const { aiConfig, suggestRewrites } = require('./rewrite');
 const { improvementDetails, optimizeForAts } = require('./ats');
 const { pageCount, renderDocument } = require('../documents/export');
+const { checkCoverLetter, recruiterVerdict } = require('./recruiter');
 const { applyConfirmedSkills } = require('./confirm');
 const { mergeSkills } = require('../profile/sources');
 const { acceptBulkSkills, rememberedUsedFor, visibleGaps } = require('./remembered');
@@ -80,7 +81,11 @@ function pastedJob(body) {
 
 // The shape returned by POST /resume and stored with the evaluation; also used to prepare applications.
 function buildPayload({ job, evaluation, built, ats, cover }) {
+    // the cover letter is held to its own rules, and the whole package gets a recruiter's verdict
+    const letterRules = checkCoverLetter(cover.text, { title: job.title, company: job.company });
+    const recruiter = recruiterVerdict({ fit: evaluation.score, ats: ats.score, resumeRules: built.rules, letterRules, blockers: evaluation.blockers || [], legitimacy: evaluation.legitimacy && evaluation.legitimacy.tier });
     return {
+        recruiter, letterRules,
         jobId: job.id, job: { title: job.title, company: job.company },
         score: evaluation.score, verdict: evaluation.verdict, coverage: evaluation.meta.coverage,
         resume: { structured: built.tailored, markdown: renderMarkdown(built.tailored), html: renderHtml(built.tailored) },

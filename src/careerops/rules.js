@@ -10,6 +10,7 @@
 
 const { paragraphLines } = require('../documents/export');
 const { countTerm } = require('./keywords');
+const { earlierLine } = require('./recruiter');
 
 const LIMITS = {
     summaryLines: 4, summaryWords: 60, skillsMin: 6, skillsMax: 20,
@@ -27,13 +28,16 @@ const STREET_ADDRESS = /\b\d{1,5}\s+[A-Za-z0-9.' -]+\s(?:street|st\.?|avenue|ave
 // The rules in plain words, for the people who write the resume and for the AI that drafts one.
 const RULES_TEXT = [
     'One page.',
-    'A summary of at most 4 lines (about 60 words), no "I" or "my", and no filler such as "results-driven" or "team player".',
+    'A one-line headline under the name: the target role, then the skill areas the job asks for.',
+    'A summary of at most 4 lines (about 60 words) that leads with years of experience and the biggest measurable results, with no "I" or "my" and no filler such as "results-driven" or "team player".',
     'Name, email and phone at the top, no street address, no photo, no date of birth or marital status.',
     'Standard headings in this order: Summary, Skills, Experience, Projects, Education, Certifications.',
     'Experience in reverse chronological order, a date range on every role.',
     'At most 5 bullets for each of the two newest roles and 4 for older ones, each bullet at most 2 lines.',
     'Every bullet starts with a strong past-tense action verb, never "I", "responsible for", "helped with" or "worked on".',
-    'Show results: at least 40% of bullets contain a real number.',
+    'Say what you did, then what changed: at least 40% of bullets contain a real number (money, percent, volume, time saved) and the key numbers are bold.',
+    'Put the 3 to 5 skills the job asks for first: in the headline, the summary and the top of the skills list.',
+    'Roles that ended more than 10 years ago get one line each under Earlier Experience.',
     'A skills list of 6 to 20 relevant skills.',
     'No "References available upon request", objective statement or hobbies.',
 ];
@@ -55,7 +59,7 @@ function trimSummary(summary, keywords = []) {
     if (!text || summaryFits(text)) return { summary: text, trimmed: false };
     // A sentence with "I", "my" or a filler phrase breaks the summary rules, so it is kept only when nothing better fits.
     const breaksRules = sentence => FIRST_PERSON.test(sentence) || CLICHES.some(term => countTerm(sentence, term));
-    const scored = splitSentences(text).map((sentence, index) => ({ sentence, index, score: (index === 0 ? 2 : 0) + keywords.filter(term => countTerm(sentence, term)).length - (breaksRules(sentence) ? 5 : 0) }));
+    const scored = splitSentences(text).map((sentence, index) => ({ sentence, index, score: (index === 0 ? 2 : 0) + (/\d/.test(sentence) ? 2 : 0) + keywords.filter(term => countTerm(sentence, term)).length - (breaksRules(sentence) ? 5 : 0) }));
     const order = [...scored].sort((a, b) => b.score - a.score || a.index - b.index);
     const chosen = [];
     for (const candidate of order) {
@@ -103,7 +107,7 @@ function chronological(experience) {
 }
 
 /** Fix what can be fixed by removing or reordering. Returns the new resume and plain-language notes. */
-function applyResumeRules(tailored, { keywords = [] } = {}) {
+function applyResumeRules(tailored, { keywords = [], now = new Date().getFullYear() } = {}) {
     const t = clone(tailored);
     const changes = [];
 
@@ -135,11 +139,24 @@ function applyResumeRules(tailored, { keywords = [] } = {}) {
         t.experience = [...t.experience].sort((a, b) => ranges.get(b).end - ranges.get(a).end || ranges.get(b).start - ranges.get(a).start);
         changes.push('Put your roles in reverse chronological order (newest first).');
     }
+    // Roles that ended more than ten years ago (never one of the two newest) are shown in one line each.
+    const cutoff = (now - 10) * 12;
+    const keep = [];
+    const shortened = [];
+    t.experience.forEach((entry, r) => {
+        const range = rangeOf(entry);
+        if (r >= 2 && range && range.end < cutoff && range.end !== 9999 * 12) shortened.push(entry); else keep.push(entry);
+    });
+    if (shortened.length) {
+        t.experience = keep;
+        t.earlier = [...(t.earlier || []), ...shortened.map(earlierLine).filter(Boolean)];
+        changes.push(`Showed ${shortened.length} role${shortened.length === 1 ? '' : 's'} that ended more than ten years ago in one line each under Earlier Experience.`);
+    }
     return { tailored: t, changes };
 }
 
 /** Every rule, with whether the resume follows it, and what to change when it does not. */
-function checkResumeRules(tailored, { pages = null } = {}) {
+function checkResumeRules(tailored, { pages = null, keywords = [], now = new Date().getFullYear() } = {}) {
     const t = tailored;
     const items = [];
     const add = (id, title, ok, detail, fix = '', lines = []) => items.push({ id, title, ok: Boolean(ok), detail, fix: ok ? '' : fix, lines: ok ? [] : lines.slice(0, 3) });
@@ -148,11 +165,14 @@ function checkResumeRules(tailored, { pages = null } = {}) {
 
     if (pages !== null) add('one-page', 'One page', pages <= 1, pages <= 1 ? 'Fits on one page.' : `${pages} pages.`, 'Shorten the header, contact or education lines in your source resume.');
 
+    add('headline', 'A headline under your name', Boolean(t.headline), t.headline ? t.headline : 'No headline.', 'Add a one-line headline under your name: the role you want, then your key skills. It needs a role title or skills that your resume evidences.');
+
     const summaryLines = t.summary ? paragraphLines(t.summary) : 0;
     const summaryWords = words(t.summary);
     add('summary-length', `Summary of at most ${LIMITS.summaryLines} lines`, !t.summary || (summaryLines <= LIMITS.summaryLines && summaryWords <= LIMITS.summaryWords),
         t.summary ? `${summaryLines} line${summaryLines === 1 ? '' : 's'}, ${summaryWords} words.` : 'No summary.',
         `Shorten your summary to ${LIMITS.summaryLines} lines or fewer (about ${LIMITS.summaryWords} words).`);
+    add('summary-numbers', 'The summary leads with numbers', !t.summary || /\d/.test(t.summary), /\d/.test(t.summary || '') ? 'The summary carries a number.' : 'The summary has no number.', 'Lead the summary with your years of experience and your biggest measurable result.');
     const buzz = CLICHES.filter(term => countTerm(t.summary || '', term));
     add('summary-voice', 'Summary in a professional voice', !FIRST_PERSON.test(t.summary || '') && !buzz.length,
         buzz.length ? `Filler words: ${buzz.join(', ')}.` : FIRST_PERSON.test(t.summary || '') ? 'Uses “I” or “my”.' : 'No first person, no filler.',
@@ -185,6 +205,15 @@ function checkResumeRules(tailored, { pages = null } = {}) {
     const repeats = t.experience.filter(entry => { const counts = {}; entry.bullets.forEach(line => { const first = (line.split(/\s+/)[0] || '').toLowerCase(); counts[first] = (counts[first] || 0) + 1; }); return Object.values(counts).some(n => n > 2); });
     add('varied-verbs', 'Varied opening verbs', repeats.length === 0, repeats.length ? 'A role repeats the same opening word three times.' : 'Varied.', 'Vary the opening verbs within a role.', repeats.map(entry => entry.header[0]));
 
+    // the 3 to 5 skills the job asks for are where a recruiter looks first: the headline, the summary and the top of the skills
+    const everything = [t.headline, t.summary, t.skills.join(' '), ...[...t.experience, ...(t.projects || [])].flatMap(entry => [...entry.header, ...entry.bullets]), ...(t.earlier || [])].join(' ');
+    const top = keywords.slice(0, 5).filter(term => countTerm(everything, term));
+    const upFront = [t.headline, t.summary, t.skills.slice(0, 10).join(' ')].join(' ');
+    const placed = top.filter(term => countTerm(upFront, term));
+    add('keywords-up-front', 'The job’s top skills come first', top.length === 0 || placed.length >= Math.min(3, top.length), `${placed.length} of the job’s top ${top.length} skills are in the headline, summary or top of the skills list.`, 'Move the skills the job asks for to the top of your skills list and into your summary.');
+    const cutoff = (now - 10) * 12;
+    const stale = t.experience.filter((entry, r) => { const range = rangeOf(entry); return r >= 2 && range && range.end < cutoff; });
+    add('earlier-experience', 'Roles older than 10 years in one line', stale.length === 0, stale.length ? `${stale.length} old role${stale.length === 1 ? ' is' : 's are'} shown in full.` : 'Older roles are one line each.', 'Show roles that ended more than ten years ago in one line each.', stale.map(entry => entry.header[0]));
     add('skills', `A skills list of ${LIMITS.skillsMin} to ${LIMITS.skillsMax}`, t.skills.length >= LIMITS.skillsMin && t.skills.length <= LIMITS.skillsMax, `${t.skills.length} skills.`, t.skills.length < LIMITS.skillsMin ? 'List at least 6 relevant skills.' : `Keep the ${LIMITS.skillsMax} most relevant skills.`);
     const filler = (t.other || []).filter(section => FILLER_SECTION.test(section.title));
     add('no-filler', 'No references line, objective or hobbies', filler.length === 0, filler.length ? filler.map(section => section.title).join(', ') : 'None.', 'Remove these sections.');
@@ -194,4 +223,4 @@ function checkResumeRules(tailored, { pages = null } = {}) {
     return { passed: items.filter(item => item.ok).length, total: items.length, items };
 }
 
-module.exports = { LIMITS, RULES_TEXT, applyResumeRules, checkResumeRules, trimSummary };
+module.exports = { LIMITS, RULES_TEXT, applyResumeRules, checkResumeRules, rangeOf, trimSummary };

@@ -6,6 +6,7 @@
 
 const { countTerm, escapeRegExp, extractKeywords } = require('./keywords');
 const { requirementEvidence } = require('./evidence');
+const { boldMetrics, earlierLine, headlineFor, headlineIsEvidenced, pickAchievements } = require('./recruiter');
 const { validateRewrite } = require('./rewrite');
 
 const { BULLET, DATE_RANGE, certificationLines, clean, headingType, joinWrapped, parseEntries, unwrapLines, wrapWidthOf } = require('./parse');
@@ -179,8 +180,13 @@ function tailorResume({ resumeText, job = {}, profile = {}, maxBullets = 6, rewr
     if (parsed.droppedFiller.length) changes.push(`Left out sections a resume should not carry: ${parsed.droppedFiller.join(', ')}.`);
 
     const gapKeywords = keywords.filter(item => !countTerm(`${resumeText}\n${profile.skills || ''}`, item.term)).map(item => item.term).slice(0, 10);
+    // A headline under the name: the role, then the skill areas the job asks for, made only of words the resume evidences.
+    const headline = headlineFor({ job, experience: parsed.experience, evidenceText: `${resumeText}\n${profile.skills || ''}`, keywords });
+    if (headline) changes.push(`Added a headline under your name, from your own wording: ${headline}.`);
     const tailored = {
         name: parsed.name || profile.full_name || '',
+        headline,
+        earlier: [],
         contact: {
             email: parsed.contact.email,
             phone: parsed.contact.phone || profile.phone || '',
@@ -222,6 +228,8 @@ function verifyTailoredFacts(tailored, resumeText, profile = {}, appliedRewrites
     }
     tailored.education.forEach(line => test(line, 'education'));
     tailored.certifications.forEach(line => test(line, 'certification'));
+    (tailored.earlier || []).forEach(line => test(line, 'earlier role'));
+    if (tailored.headline && !headlineIsEvidenced(tailored.headline, `${resumeText}\n${profile.skills || ''}`)) unsupported.push({ line: clean(tailored.headline).slice(0, 160), where: 'headline' });
     tailored.skills.forEach(line => test(line, 'skill'));
     // a summary may be cut back to some of the person's own sentences, so each sentence is checked on its own
     if (!tailored.summaryGenerated && tailored.summary) tailored.summary.split(/(?<=[.!?])\s+/).forEach(sentence => test(sentence, 'summary'));
@@ -235,34 +243,39 @@ function renderMarkdown(t) {
     if (t.name) out.push(`# ${t.name}`);
     const contact = [t.contact.email, t.contact.phone, t.contact.location, ...t.contact.links].filter(Boolean);
     if (contact.length) out.push(contact.join(' · '));
-    if (t.summary) out.push('', '## Summary', t.summary);
+    if (t.headline) out.push(`**${t.headline}**`);
+    if (t.summary) out.push('', '## Summary', boldMetrics(t.summary));
     if (t.skills.length) out.push('', '## Skills', t.skills.join(', '));
     if (t.experience.length) {
         out.push('', '## Experience');
-        for (const entry of t.experience) { out.push('', ...entry.header.map((line, i) => (i === 0 ? `### ${line}` : line)), ...entry.bullets.map(b => `- ${b}`)); }
+        for (const entry of t.experience) { out.push('', ...entry.header.map((line, i) => (i === 0 ? `### ${line}` : line)), ...entry.bullets.map(b => `- ${boldMetrics(b)}`)); }
     }
+    if ((t.earlier || []).length) out.push('', '## Earlier Experience', ...t.earlier);
     if (t.projects.length) {
         out.push('', '## Projects');
-        for (const entry of t.projects) { out.push('', ...entry.header.map((line, i) => (i === 0 ? `### ${line}` : line)), ...entry.bullets.map(b => `- ${b}`)); }
+        for (const entry of t.projects) { out.push('', ...entry.header.map((line, i) => (i === 0 ? `### ${line}` : line)), ...entry.bullets.map(b => `- ${boldMetrics(b)}`)); }
     }
     if (t.education.length) out.push('', '## Education', ...t.education);
     if (t.certifications.length) out.push('', '## Certifications', ...t.certifications.map(c => `- ${c}`));
     for (const section of t.other) out.push('', `## ${section.title}`, ...section.lines);
     return `${out.join('\n').trim()}\n`;
 }
-
+// **bold** markers (the key numbers) become <strong>; everything else is escaped as before
+const richHtml = value => escapeHtml(value).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 function renderHtml(t) {
-    const entry = e => `<div class="entry">${e.header.map((line, i) => `<p class="${i === 0 ? 'role' : 'meta'}">${escapeHtml(line)}</p>`).join('')}${e.bullets.length ? `<ul>${e.bullets.map(b => `<li>${escapeHtml(b)}</li>`).join('')}</ul>` : ''}</div>`;
+    const entry = e => `<div class="entry">${e.header.map((line, i) => `<p class="${i === 0 ? 'role' : 'meta'}">${escapeHtml(line)}</p>`).join('')}${e.bullets.length ? `<ul>${e.bullets.map(b => `<li>${richHtml(boldMetrics(b))}</li>`).join('')}</ul>` : ''}</div>`;
     const contact = [t.contact.email, t.contact.phone, t.contact.location, ...t.contact.links].filter(Boolean).map(escapeHtml).join(' &middot; ');
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(t.name || 'Resume')}</title><style>
 body{font:11pt/1.4 Arial,Helvetica,sans-serif;color:#111;max-width:760px;margin:24px auto;padding:0 20px}
 h1{font-size:20pt;margin:0}h2{font-size:12pt;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #999;margin:18px 0 6px;padding-bottom:2px}
-.contact{color:#333;margin:4px 0 0}.role{font-weight:700;margin:10px 0 0}.meta{margin:0;color:#333}ul{margin:4px 0 0 18px;padding:0}li{margin:2px 0}
+.contact{color:#333;margin:4px 0 0}.headline{font-weight:700;margin:4px 0 0}.role{font-weight:700;margin:10px 0 0}.meta{margin:0;color:#333}ul{margin:4px 0 0 18px;padding:0}li{margin:2px 0}
 @media print{body{margin:0;max-width:none}}</style></head><body>
 <h1>${escapeHtml(t.name)}</h1><p class="contact">${contact}</p>
-${t.summary ? `<h2>Summary</h2><p>${escapeHtml(t.summary)}</p>` : ''}
+${t.headline ? `<p class="headline">${escapeHtml(t.headline)}</p>` : ''}
+${t.summary ? `<h2>Summary</h2><p>${richHtml(boldMetrics(t.summary))}</p>` : ''}
 ${t.skills.length ? `<h2>Skills</h2><p>${escapeHtml(t.skills.join(', '))}</p>` : ''}
 ${t.experience.length ? `<h2>Experience</h2>${t.experience.map(entry).join('')}` : ''}
+${(t.earlier || []).length ? `<h2>Earlier Experience</h2>${t.earlier.map(l => `<p class="meta">${escapeHtml(l)}</p>`).join('')}` : ''}
 ${t.projects.length ? `<h2>Projects</h2>${t.projects.map(entry).join('')}` : ''}
 ${t.education.length ? `<h2>Education</h2>${t.education.map(l => `<p class="meta">${escapeHtml(l)}</p>`).join('')}` : ''}
 ${t.certifications.length ? `<h2>Certifications</h2><ul>${t.certifications.map(c => `<li>${escapeHtml(c)}</li>`).join('')}</ul>` : ''}
@@ -273,30 +286,34 @@ ${t.other.map(s => `<h2>${escapeHtml(s.title)}</h2>${s.lines.map(l => `<p class=
 function buildCoverLetter({ resumeText, job = {}, profile = {}, requirements = [] }) {
     const company = job.company || 'the hiring team';
     const name = profile.full_name || '[Your name]';
-    const evidence = (requirements.length ? requirements : []).filter(item => item.status === 'match' && item.evidence).slice(0, 3);
-    const fallback = evidence.length ? evidence : requirementEvidence(resumeText, job).slice(0, 3);
+    const matched = requirements.length ? requirements.filter(item => item.status === 'match' && item.evidence) : [];
+    // the best numbers first, matched to what the job asks for; each one is a line from the resume, word for word
+    const evidence = pickAchievements(matched.length ? matched : requirementEvidence(resumeText, job));
     // Only genuine requirement gaps are disclosed; nice-to-haves are not worth a sentence.
     const gaps = requirements.filter(item => item.status === 'gap' && item.priority !== 'preferred').slice(0, 1);
-    const paragraphs = [`Dear ${job.company ? `${job.company} hiring team` : 'hiring team'},`,
-        `I'm writing to apply for the ${job.title || 'open'} role at ${company}.${job.location ? ` I understand the position is based in ${job.location}.` : ''}`];
-    if (fallback.length) {
-        paragraphs.push('Here is where my experience lines up with what you are looking for:',
-            fallback.map(item => `• ${item.evidence}  (relevant to: ${String(item.requirement).slice(0, 90)})`).join('\n'));
+    const paragraphs = [`Dear ${job.company ? `${job.company} hiring team` : 'hiring team'},`];
+    // 1. the role and the company, straight away
+    paragraphs.push(`I'm applying for the ${job.title || 'open'} role at ${company}${job.location ? ` in ${job.location}` : ''}, and my background lines up with what you are hiring for.`);
+    // 2. the best results, in the resume's own words, each tied to the requirement it answers
+    if (evidence.length) {
+        paragraphs.push(evidence.map(item => `• ${item.evidence}${item.requirement ? ` (answers: ${String(item.requirement).replace(/\s+/g, ' ').slice(0, 70)})` : ''}`).join('\n'));
     }
+    // 3. an honest note about a real gap, then a clear next step
     if (gaps.length) {
         const named = (gaps[0].missingTerms || []).slice(0, 3).join(', ') || String(gaps[0].requirement).slice(0, 100);
-        paragraphs.push(`One area where I am still building depth is ${named}, and I would welcome the chance to discuss how I would ramp up.`);
+        paragraphs.push(`One area where I am still building depth is ${named}, and I would be glad to discuss how I would ramp up.`);
     }
-    paragraphs.push('I would welcome the chance to talk about how I can contribute to the team. Thank you for your time and consideration.', `Sincerely,\n${name}`);
+    paragraphs.push(`I would welcome a short conversation about how this experience can help ${job.company ? `the team at ${job.company}` : 'your team'}.`, `Sincerely,\n${name}`);
     return {
         text: paragraphs.join('\n\n'),
-        evidenceUsed: fallback.map(item => item.evidence),
+        evidenceUsed: evidence.map(item => item.evidence),
         draftNotice: 'Draft built only from lines in your resume. Review and edit before sending — nothing is sent automatically.',
     };
 }
 
-// Bumped whenever the way a resume is read changes in a way that makes older drafts wrong. Drafts record the version that built them,
-// and a draft built by an older reader is rebuilt automatically.
-const READER_VERSION = 2;
+// Bumped whenever the way a resume or cover letter is built changes so that older drafts are out of date. Drafts record the
+// version that built them, and a draft built by an older version is rebuilt automatically.
+// 2: the resume reader was fixed.  3: headline, bold numbers, earlier experience, recruiter-style cover letter.
+const READER_VERSION = 3;
 
 module.exports = { READER_VERSION, readingIssues, DATE_RANGE, buildCoverLetter, parseResume, renderHtml, renderMarkdown, tailorResume, verifyTailoredFacts };

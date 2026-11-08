@@ -15,7 +15,7 @@ const ACTION_START = /^(?:[A-Z][a-z]+ed|Built|Led|Wrote|Ran|Drove|Made|Grew|Cut|
 const FIRST_PERSON = /\b(?:I|my|me|we|our)\b/;
 
 function plainText(t) {
-    return [t.name, ...Object.values(t.contact || {}).flat(), t.summary, t.skills.join(', '),
+    return [t.name, t.headline, ...Object.values(t.contact || {}).flat(), t.summary, t.skills.join(', '), ...(t.earlier || []),
         ...[...t.experience, ...t.projects].flatMap(entry => [...entry.header, ...entry.bullets]),
         ...t.education, ...t.certifications, ...t.other.flatMap(section => [section.title, ...section.lines])].filter(Boolean).join('\n');
 }
@@ -122,7 +122,7 @@ async function optimizeForAts({ resumeText, job, profile = {}, rewrites = [], ta
         const fitted = fitToPages(built.tailored, { pages: 1 });
         built.tailored = fitted.tailored;
         built.pages = fitted.pages;
-        built.rules = checkResumeRules(built.tailored, { pages: fitted.pages });
+        built.rules = checkResumeRules(built.tailored, { pages: fitted.pages, keywords: jobKeywords });
         if (fitted.removed.length) built.changes = [...built.changes, describeRemoval(fitted.removed)];
         if (!fitted.fits) built.warnings = [...built.warnings, 'This resume still runs past one page after removing everything that could be left out. Shorten your name line, contact details or education in your source resume.'];
         const ats = scoreAts({ tailored: built.tailored, job, candidateText });

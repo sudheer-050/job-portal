@@ -276,25 +276,36 @@
     }
 
     // Every resume rule, passed or not, with what to change when it needs the person's own words.
-    function rulesCard(r) {
-        if (!r.rules || !r.rules.items) return '';
-        var failing = r.rules.items.filter(function (item) { return !item.ok; });
-        var passing = r.rules.items.filter(function (item) { return item.ok; });
+    function rulesCard(r, rules, label) {
+        rules = rules || r.rules;
+        label = label || 'Resume rules';
+        if (!rules || !rules.items) return '';
+        var failing = rules.items.filter(function (item) { return !item.ok; });
+        var passing = rules.items.filter(function (item) { return item.ok; });
         var line = function (item) {
             return '<li>' + chip(item.ok ? 'Followed' : 'Not yet', item.ok ? 'ok' : 'warn') + ' <strong>' + esc(item.title) + '</strong> <span class="co-note">' + esc(item.detail) + '</span>' +
                 (!item.ok && item.fix ? '<div class="co-evidence">' + esc(item.fix) + '</div>' : '') +
                 (!item.ok && item.lines && item.lines.length ? '<ul>' + item.lines.map(function (l) { return '<li class="co-evidence">' + esc(l) + '</li>'; }).join('') + '</ul>' : '') + '</li>';
         };
-        return '<div class="co-card"><h4>Resume rules: ' + r.rules.passed + ' of ' + r.rules.total + ' followed</h4>' +
+        return '<div class="co-card"><h4>' + esc(label) + ': ' + rules.passed + ' of ' + rules.total + ' followed</h4>' +
             (failing.length ? '<p class="co-note">These need something from you, in your own words. Career Ops fixes what it can without changing a fact (length, order, filler) and never writes new claims.</p><ul class="co-rules">' + failing.map(line).join('') + '</ul>' : '<p class="co-note">Every rule is followed.</p>') +
             '<details class="co-rules-passed"><summary>Rules already followed (' + passing.length + ')</summary><ul class="co-rules">' + passing.map(line).join('') + '</ul></details></div>';
+    }
+
+    // A recruiter's verdict on the whole package: shortlist, maybe or reject, with the reasons and the quick fixes.
+    function verdictCard(r) {
+        if (!r.recruiter) return '';
+        var v = r.recruiter;
+        var kind = v.verdict === 'Shortlist' ? 'ok' : v.verdict === 'Reject' ? 'bad' : 'warn';
+        return '<div class="co-card"><h4>Recruiter\'s verdict ' + chip(v.verdict, kind) + '</h4><ul class="co-rules">' + v.reasons.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' +
+            (v.fixes.length ? '<p class="co-note"><strong>Quick fixes:</strong></p><ul class="co-rules">' + v.fixes.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') + '</div>';
     }
 
     function renderResumeOut(r) {
         var ok = r.factCheck.ok;
         var html = atsHtml(r.ats) + skillsAskHtml(r) + '<div class="co-hero"><div class="co-score ' + scoreClass(r.score) + '"><strong>' + r.score.toFixed(1) + '</strong><span>job fit</span></div><div class="co-verdict"><h3>' + esc(r.verdict.label) + '</h3><p>' + esc(r.verdict.text) + '</p>' +
             '<div class="co-chips">' + chip(ok ? 'Fact check passed' : 'Fact check failed', ok ? 'ok' : 'bad') + (r.coverage != null ? chip('CV match ' + r.coverage + '%', r.coverage >= 95 ? 'ok' : 'warn') : '') + (r.pages ? chip(r.pages === 1 ? '1 page' : r.pages + ' pages', r.pages === 1 ? 'ok' : 'bad') : '') + (r.keywords.featured.length ? chip('Featured: ' + r.keywords.featured.join(', '), 'brand') : '') + '</div></div></div>';
-        html += rulesCard(r);
+        html += verdictCard(r) + rulesCard(r);
         if (!ok) html += '<div class="co-card"><h4>Lines not found in your source resume</h4>' + list(r.factCheck.unsupported.map(function (u) { return u.where + ': ' + u.line; })) + '</div>';
         if (r.warnings.length) html += '<div class="co-card"><h4>Notes</h4>' + list(r.warnings) + '</div>';
         if (r.changes.length) html += '<div class="co-card"><h4>What changed from your source resume</h4>' + list(r.changes) + '</div>';
@@ -308,6 +319,7 @@
             exportMenu('resume') +
             (r.jobId ? '<a class="btn btn-primary btn-small" target="_blank" rel="noopener" href="' + API + '/resume/' + encodeURIComponent(r.jobId) + '/html">Open print-ready (Save as PDF)</a>' : '') +
             '</div><textarea id="coResumeText" readonly rows="16"></textarea><p class="co-note">Single column, standard headings, no tables or graphics — parsed cleanly by applicant tracking systems.</p></div>';
+        html += rulesCard(r, r.letterRules, 'Cover letter rules');
         html += '<div class="co-card"><h4>Cover letter draft</h4><p class="co-note">' + esc(r.coverLetter.draftNotice) + '</p><div class="co-row" style="margin-top:6px"><button type="button" class="btn btn-ghost btn-small" id="coCopyCover">Copy</button>' + exportMenu('cover') + '</div><textarea id="coCoverText" rows="14"></textarea></div>' +
             '<div class="co-row"><button type="button" class="btn btn-primary" id="coGoApply">Next: apply to this job &rarr;</button></div>';
         document.getElementById('coResumeOut').innerHTML = html;

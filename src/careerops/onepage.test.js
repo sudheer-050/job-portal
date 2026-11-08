@@ -116,7 +116,7 @@ test('what was left out is described in plain words', () => {
     assert.equal(describeRemoval([]), '');
     const text = describeRemoval(['a bullet under "x"', 'a bullet under "y"', 'project "Churn model"']);
     assert.match(text, /^Kept to one page: left out 2 lower-relevance bullets, 1 project. /);
-    assert.match(describeRemoval(['the role "X"', 'certification "A"', 'certification "B"', 'skill "dbt"', 'the summary', 'Other: one line']), /1 older role, 2 certifications, 1 extra skill, the summary, 1 other line./);
+    assert.match(describeRemoval(['the role "X"', 'the one-line entry for "Y"', 'certification "A"', 'certification "B"', 'skill "dbt"', 'the summary', 'Other: one line']), /1 older role shortened to one line, 1 older role dropped, 2 certifications, 1 extra skill, the summary, 1 other line./);
     assert.match(text, /still from your own resume/);
 });
 

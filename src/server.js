@@ -936,7 +936,7 @@ async function autoRewriteApplications(username) {
         applicationsBeingRewritten.add(row.id);
         try {
             const reason = ['ready_to_submit', 'action_required'].includes(row.status)
-                ? (row.resumePages > 1 ? `its resume ran to ${row.resumePages} pages and a resume must be one page` : row.resumeSummaryLines > RESUME_LIMITS.summaryLines ? `its summary ran to ${row.resumeSummaryLines} lines and a summary must be at most ${RESUME_LIMITS.summaryLines}` : 'Career Ops now reads your resume more accurately and rebuilt this draft from it')
+                ? (row.resumePages > 1 ? `its resume ran to ${row.resumePages} pages and a resume must be one page` : row.resumeSummaryLines > RESUME_LIMITS.summaryLines ? `its summary ran to ${row.resumeSummaryLines} lines and a summary must be at most ${RESUME_LIMITS.summaryLines}` : 'Career Ops now builds resumes and cover letters to the latest recruiter rules and rebuilt this draft')
                 : row.status === 'needs_review'
                     ? `Hagent's review${row.quality_score != null ? ` scored it ${row.quality_score}/100 and` : ''} asked for changes`
                     : 'Hagent had not finished it';
@@ -967,7 +967,7 @@ app.get('/api/jobs/applications', requireAuth, asyncRoute(async (req, res) => {
         `SELECT a.id,a.job_id,a.status,a.tailored_resume,a.cover_letter,a.resume_version,a.cover_letter_version,a.quality_score,a.quality_verdict,
                 a.quality_notes,a.requires_login,a.submission_mode,a.submission_provider,a.confirmation_reference,
                 a.error,a.created_at,a.updated_at,a.applied_at,
-                p.title,p.company,p.location,p.apply_url AS "applyUrl",p.source,
+                p.title,p.company,p.location,p.apply_url AS "applyUrl",p.source,p.posted_at AS "postedAt",
                 e.score::float AS "coScore",e.verdict AS "coVerdict",e.legitimacy_tier AS "coTier",e.coverage AS "coCoverage",
                 e.missing AS "coMissing", (e.tailored IS NOT NULL) AS "coHasResume"
          FROM job_applications a JOIN job_postings p ON p.id=a.job_id
