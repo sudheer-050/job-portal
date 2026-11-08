@@ -362,6 +362,6 @@ function buildCoverLetter({ resumeText, job = {}, profile = {}, requirements = [
 // Bumped whenever the way a resume or cover letter is built changes so that older drafts are out of date. Drafts record the
 // version that built them, and a draft built by an older version is rebuilt automatically.
 // 2: the resume reader was fixed.  3: headline, bold numbers, earlier experience, recruiter-style cover letter.
-const READER_VERSION = 5; // 5: the headline comes from the person's own title line
+const READER_VERSION = 6; // 6: a headline is kept when only your own title line fits
 
 module.exports = { READER_VERSION, readingIssues, DATE_RANGE, buildCoverLetter, parseResume, renderHtml, renderMarkdown, tailorResume, verifyTailoredFacts };
