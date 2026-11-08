@@ -8,6 +8,17 @@
 
 ## Unreleased — Larger dashboard strip, full-height sidebar, clearer application steps
 
+### Recruiter rules for resumes and cover letters
+
+- Resumes get a one-line headline under the name (target role plus the skills the job asks for), built only from wording in your own resume.
+- Key numbers are bold; the summary prefers sentences with numbers; the job's top skills must appear in the headline, summary or top of the skills list.
+- Roles that ended more than 10 years ago show as one line each under Earlier Experience, and a role cut to fit one page shrinks to one line before it is dropped.
+- Cover letters open with the role and company, quote up to three of your best results (numbers first) word for word, and are checked against 8 rules; a recruiter verdict (Shortlist / Maybe / Reject) with quick fixes is shown.
+- Resume layout follows the one-page sample: dates against the right margin, coloured section headings, skills grouped under their own category labels when your resume has them.
+- Bullets with no number are listed as "[ADD METRIC]" questions for you to answer; nothing is ever filled in for you.
+- Jobs show how long ago they were posted, with an apply-soon hint for the first week. Existing drafts rebuild automatically.
+
+
 - **Career Ops remembers the skills you confirm:** when you say you have a missing skill on one job, it is stored (new table `job_confirmed_skills`) and used automatically for every later job that asks for it: evaluations, scans, CV match, ATS score, tailored resumes, applications and Discover ranking. The old "save to my profile" checkbox is gone because saving is now automatic. The built resume says which skills were reused from memory, and **Profile & resume → Skills you have confirmed** lists them with a **remove** link; removing one stops it being used. New endpoints `GET /api/jobs/careerops/skills` and `DELETE /api/jobs/careerops/skills/:skill`.
 - **Add missing skills when CV match is under 95%:** the Check before you apply panel on each job card now shows **CV match is N% — aim for 95%** with **View missing skills**. It lists what the job asks for that your resume does not show (nothing ticked), and **Add ticked skills to my resume** adds the ones you confirm to your Skills, optionally saving them to your profile, then updates the CV match and ATS score right there. Applications below 95% have an **Add missing skills** button, the built resume shows its CV match, and the Applications list refreshes every time you open it.
 - **Applications no longer go blank while Hagent is busy:** the list used to wait for every unfinished Hagent call (up to six minutes each) before showing anything, so the dashboard counted applications that the list could not yet show. The list now loads immediately and Hagent progress is checked in the background; while something is still being prepared the view refreshes itself every 15 seconds. It shows "Loading your applications…" and, on failure, an error with a **Try again** button.

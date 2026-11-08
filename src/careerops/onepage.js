@@ -10,6 +10,7 @@
 
 const { pageCount } = require('../documents/export');
 const { renderMarkdown } = require('./resume');
+const { earlierLine } = require('./recruiter');
 
 // Free space kept at the bottom of the page so the Word version, which flows slightly differently, also stays on one page.
 const SAFETY = 40;
@@ -32,6 +33,9 @@ function without(original, removed) {
         .filter(role => !removed.has(`r:${role.id}`))
         .map(({ id, ...role }) => role);
     if (removed.has('summary')) draft.summary = '';
+    // an old role that is cut as a role is not lost: it stays as one line under Earlier Experience, unless that line is cut too
+    const shortened = original.experience.map((role, r) => ({ role, r })).filter(({ r }) => removed.has(`r:${r}`) && !removed.has(`e:${r}`)).map(({ role }) => earlierLine(role)).filter(Boolean);
+    draft.earlier = [...(original.earlier || []), ...shortened];
     return draft;
 }
 
@@ -57,7 +61,10 @@ function units(t) {
             else if (i >= 1) add(`b:${r}:${i}`, 100 - i * 10 - r * 6, `a bullet under "${role.header[0] || 'a role'}"`, true);
         });
         // an old role goes whole, never one of the three newest
-        if (r >= 3) add(`r:${r}`, 20 - r * 0.5, `the role "${role.header[0] || 'an old role'}"`);
+        if (r >= 3) {
+            add(`r:${r}`, 20 - r * 0.5, `the role "${role.header[0] || 'an old role'}"`);
+            add(`e:${r}`, 6, `the one-line entry for "${role.header[0] || 'an old role'}"`);
+        }
     });
     if (t.summary) add('summary', 95, 'the summary', true);
     return out;
@@ -77,8 +84,10 @@ function fitToPages(tailored, { pages = 1 } = {}) {
     // 1. take out the least valuable pieces until it fits
     while (!fits()) {
         const left = all.filter(unit => !removed.has(unit.id));
-        const comfortable = left.filter(unit => !unit.late);
-        const pool = comfortable.length ? comfortable : left;
+        // a role's one-line entry can only be cut once the role itself has been cut down to it
+        const available = left.filter(unit => !/^e:/.test(unit.id) || removed.has(`r:${unit.id.slice(2)}`));
+        const comfortable = available.filter(unit => !unit.late);
+        const pool = comfortable.length ? comfortable : available;
         if (!pool.length) break;
         pool.sort((a, b) => a.value - b.value);
         removed.add(pool[0].id);
@@ -92,6 +101,7 @@ function fitToPages(tailored, { pages = 1 } = {}) {
         const order = [...removed].map(id => byId.get(id)).filter(Boolean).sort((a, b) => b.value - a.value);
         for (const unit of order) {
             if (/^b:/.test(unit.id) && removed.has(`r:${unit.id.split(':')[1]}`)) continue; // its whole role is out
+            if (/^e:/.test(unit.id) && !removed.has(`r:${unit.id.slice(2)}`)) continue;
             removed.delete(unit.id);
             if (!fits()) removed.add(unit.id);
         }
@@ -107,7 +117,8 @@ function describeRemoval(removed) {
     if (!removed.length) return '';
     const kinds = [
         [/^a bullet/, 'lower-relevance bullet', 'lower-relevance bullets'],
-        [/^the role/, 'older role', 'older roles'],
+        [/^the role/, 'older role shortened to one line', 'older roles shortened to one line'],
+        [/^the one-line entry/, 'older role dropped', 'older roles dropped'],
         [/^project/, 'project', 'projects'],
         [/^certification/, 'certification', 'certifications'],
         [/^skill/, 'extra skill', 'extra skills'],

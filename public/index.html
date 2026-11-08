@@ -824,6 +824,14 @@
         // "Resume v2 ▾" opens PDF / Word / Markdown. Plain links, so they work without script and keep the right file name.
         const downloadMenu = (label, base) => `<details class="download-menu"><summary class="btn btn-ghost">${label} <span aria-hidden="true">▾</span></summary><div class="download-options"><a href="${base}?format=pdf">PDF</a><a href="${base}?format=docx">Word (.docx)</a><a href="${base}?format=md">Markdown (.md)</a></div></details>`;
         document.addEventListener('click', event => { document.querySelectorAll('details.download-menu[open]').forEach(menu => { if (!menu.contains(event.target)) menu.open = false; }); });
+        // Timing matters: a posting that is a few days old gets read, an old one is often already decided.
+        const postedLabel = item => {
+            const posted = item.postedAt ? new Date(item.postedAt) : null;
+            if (!posted || Number.isNaN(posted.getTime())) return '';
+            const days = Math.max(0, Math.floor((Date.now() - posted.getTime()) / 86400000));
+            const label = days === 0 ? 'posted today' : days === 1 ? 'posted yesterday' : `posted ${days} days ago`;
+            return item.status !== 'applied' && days <= 7 ? `${label} <strong>apply soon</strong>` : label;
+        };
         const appSkillMessages = {};
         const improveOpen = {};
         const improveData = {};
@@ -894,7 +902,7 @@
             }
             applicationsContainer.innerHTML = shown.map(item => `
                 <div class="application-row${item.processing ? ' is-processing' : ''}">
-                    <div class="application-row-head"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.company || 'Company not listed')} &middot; ${escapeHtml(item.source || '')}</small></div><span class="application-status ${item.status === 'applied' ? 'applied' : ''}">${escapeHtml(item.status.replaceAll('_',' '))}${item.quality_score ? ` &middot; ${String(item.quality_notes || '').startsWith('{"source":"career-ops"') ? 'ATS ' : ''}${item.quality_score}/100` : ''}${item.processing ? ' &middot; updating' : ''}</span></div>
+                    <div class="application-row-head"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.company || 'Company not listed')} &middot; ${escapeHtml(item.source || '')}${postedLabel(item) ? ` &middot; ${postedLabel(item)}` : ''}</small></div><span class="application-status ${item.status === 'applied' ? 'applied' : ''}">${escapeHtml(item.status.replaceAll('_',' '))}${item.quality_score ? ` &middot; ${String(item.quality_notes || '').startsWith('{"source":"career-ops"') ? 'ATS ' : ''}${item.quality_score}/100` : ''}${item.processing ? ' &middot; updating' : ''}</span></div>
                     ${item.processing ? `<div class="processing-note" role="status"><span class="spinner" aria-hidden="true"></span> ${item.processing === 'rewriting' ? 'Career Ops is rewriting the resume and cover letter.' : item.processing === 'reviewing' ? 'The resume is being reviewed.' : 'The resume and cover letter are being prepared.'} Any score shown here is not final yet.</div>` : ''}
                     ${item.coScore != null ? `<div class="source-status">Career Ops: <strong>${Number(item.coScore).toFixed(1)}/5</strong> &middot; ${escapeHtml(item.coVerdict || '')} &middot; ${escapeHtml(item.coTier || '')}${item.coCoverage != null ? ` &middot; CV match ${Number(item.coCoverage)}%` : ''} &middot; <a href="#careerops">Open Career Ops</a></div>` : ''}
                     ${missingSkillsBlock(item)}
