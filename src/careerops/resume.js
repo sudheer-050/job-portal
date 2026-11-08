@@ -40,11 +40,17 @@ function splitList(lines) {
 // "Languages: Python, SQL" lines keep their category label; a skills section with fewer than two labels is just a list.
 function skillGroupsOf(lines) {
     const groups = [];
-    for (const line of lines) {
-        const m = String(line).match(/^\s*([A-Z][A-Za-z0-9 &/+-]{1,32}?)\s*:\s*(.+)$/);
-        if (m) groups.push({ label: m[1].trim(), items: splitList([m[2]]) });
+    const filled = lines.map(clean).filter(Boolean);
+    // groups only when the section starts with a label; a section that mixes unlabeled lists stays a plain list
+    if (!filled.length || !/^[A-Z][A-Za-z0-9 &/+-]{1,32}?\s*:\s*\S/.test(filled[0])) return [];
+    for (const raw of filled) {
+        const line = raw;
+        const m = line.match(/^([A-Z][A-Za-z0-9 &/+-]{1,32}?)\s*:\s*(.+)$/);
+        if (m) groups.push({ label: m[1].trim(), text: m[2] });
+        else if (groups.length) groups[groups.length - 1].text += ` ${line}`; // the rest of a wrapped line belongs to the group above
     }
-    return groups.length >= 2 ? groups : [];
+    const out = groups.map(g => ({ label: g.label, items: splitList([g.text]) }));
+    return out;
 }
 
 function parseResume(text) {
@@ -71,6 +77,12 @@ function parseResume(text) {
     const headerLines = header.lines.map(clean).filter(Boolean);
     const name = headerLines.find(line => line.length <= 60 && !/[@\d]/.test(line) && line.split(/\s+/).length <= 5) || '';
     const byType = type => sections.filter(section => section.type === type);
+    // each skills section is either labeled lines ("Languages: Python, SQL") or a plain list; labels are kept only when two or more exist
+    const pieces = byType('skills').map(section => ({ groups: skillGroupsOf(section.lines), section }));
+    const labeled = pieces.flatMap(piece => piece.groups);
+    const skillGroups = labeled.length >= 2 ? labeled : [];
+    const plainSkills = splitList(pieces.filter(piece => !piece.groups.length || !skillGroups.length).flatMap(piece => unwrapLines(piece.section.lines, { wrapWidth })));
+    const groupedSkills = skillGroups.flatMap(g => g.items);
     return {
         name,
         contact: parseContact(headerLines.length ? headerLines : nonEmpty),
@@ -78,8 +90,8 @@ function parseResume(text) {
         droppedFiller: byType('filler').map(section => section.title),
         summary: clean(byType('summary').flatMap(section => section.lines.map(clean).filter(Boolean)).reduce((text, line) => (text ? joinWrapped(text, line) : line), '')),
         experience: byType('experience').flatMap(section => parseEntries(section.lines, { wrapWidth })),
-        skills: splitList(byType('skills').flatMap(section => unwrapLines(section.lines, { wrapWidth }))),
-        skillGroups: skillGroupsOf(byType('skills').flatMap(section => unwrapLines(section.lines, { wrapWidth }))),
+        skills: [...new Map([...groupedSkills, ...plainSkills].map(skill => [skill.toLowerCase(), skill])).values()],
+        skillGroups,
         education: byType('education').flatMap(section => unwrapLines(section.lines)),
         projects: byType('projects').flatMap(section => parseEntries(section.lines, { wrapWidth })),
         certifications: byType('certifications').flatMap(section => certificationLines(section.lines, { wrapWidth })),
@@ -252,6 +264,9 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':
 // "Role | Company" with its dates against the right margin; whatever else is on the dates line (a location) stays under it.
 function entryLines(entry) {
     const [first, second, ...rest] = entry.header;
+    // the dates are already on the title line ("Role, Company | Mar 2024 – Jun 2024"): move them to the right margin
+    const own = earlierDates(first);
+    if (own && first.endsWith(own)) return [`### ${first.slice(0, -own.length).replace(/[\s|·,–—-]+$/, '')}\t${own}`, ...(second ? [second, ...rest] : [])];
     const dates = second && (earlierDates(second) || '');
     if (!dates) return entry.header.map((line, i) => (i === 0 ? `### ${line}` : line));
     const leftover = second.replace(dates, '').replace(/^[\s|,·–—-]+|[\s|,·–—-]+$/g, '').replace(/\s*[|·]\s*[|·]\s*/g, ' | ');
@@ -347,6 +362,6 @@ function buildCoverLetter({ resumeText, job = {}, profile = {}, requirements = [
 // Bumped whenever the way a resume or cover letter is built changes so that older drafts are out of date. Drafts record the
 // version that built them, and a draft built by an older version is rebuilt automatically.
 // 2: the resume reader was fixed.  3: headline, bold numbers, earlier experience, recruiter-style cover letter.
-const READER_VERSION = 3;
+const READER_VERSION = 4; // 4: PDFs with unspaced bullets and glued dates are read correctly
 
 module.exports = { READER_VERSION, readingIssues, DATE_RANGE, buildCoverLetter, parseResume, renderHtml, renderMarkdown, tailorResume, verifyTailoredFacts };
