@@ -241,3 +241,12 @@ test('the headline uses the part of your own title line that is closest to the j
     assert.match(ml, /^AI\/ML Engineer & Analyst \| /);
     assert.equal(headlineIsEvidenced(ml, text), true);
 });
+
+test('your own title line alone is a fine headline when no job skill is evidenced', () => {
+    const NL = String.fromCharCode(10);
+    const text = ['Jordan Rivera', 'AI/ML Engineer & Analyst | Data Analyst', 'jordan@example.com', 'EXPERIENCE', 'Data Analytics Intern, Acme, Remote 2023 - 2024', '- Built 3 dashboards'].join(NL);
+    const parsed = parseResume(text);
+    const headline = headlineFor({ job: { title: 'AI Engineer' }, ownTitles: ownTitleParts(parsed.headerLines), experience: parsed.experience, evidenceText: text, keywords: [{ term: 'kubernetes' }] });
+    assert.equal(headline, 'AI/ML Engineer & Analyst');
+    assert.equal(headlineFor({ job: { title: 'Chef' }, ownTitles: [], experience: [], evidenceText: 'x', keywords: [] }), '');
+});

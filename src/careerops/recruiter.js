@@ -79,7 +79,7 @@ function headlineFor({ job = {}, experience = [], evidenceText = '', keywords = 
         skills.push(shown);
     }
     const parts = [heading, ...skills].filter(Boolean);
-    return parts.length >= 2 ? parts.join(' | ').slice(0, 110) : '';
+    return (parts.length >= 2 || (ownBest && parts.length === 1)) ? parts.join(' | ').slice(0, 110) : '';
 }
 
 /** A headline is true when every part of it is wording from the resume (a part that is not is a fabrication). */
