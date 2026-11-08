@@ -253,3 +253,38 @@ test('a role that was read wrongly is reported, and a clean reading reports noth
     assert.match(issues, /no role heading/);
     assert.match(readingIssues({ experience: [] })[0], /No work experience was found/);
 });
+
+test('a PDF whose bullets have no space after them and whose dates are glued to the location is read correctly', async () => {
+    const NL = String.fromCharCode(10);
+    const text = [
+        'JANE Q EXAMPLE', 'jane@example.com | (312) 555-0101', 'SKILLS',
+        'Languages and Data: Python, SQL, R',
+        'Analytics and BI: Power BI, Tableau, Excel, forecasting, KPI design, sensitivity analysis, DCF valuation, linear programming, CPM scheduling',
+        'ML and AI: scikit-learn, TensorFlow, XGBoost',
+        'EXPERIENCE',
+        'Data Analytics Intern, Northwind Mentor, Remote (India)Mar 2024 – Jun 2024',
+        '•Analyzed 100K+ sales transactions in Power BI and R, surfacing regional trends that contributed to a 10% sales',
+        'increase in a targeted customer segment',
+        '•Ran A/B tests across multiple campaigns to check hypotheses against statistical evidence',
+        'Data Analyst Intern, Contoso Motors, Springfield, IndiaAug 2023 – Feb 2024',
+        '•Built Python sales-forecasting models on historical transactions to predict seasonal demand, improving planning and',
+        '',
+        '•Benchmarked models with MAE, RMSE, and cross-validation to make inventory forecasts more consistent',
+        'Intern, Example Steel Plant, Springfield, IndiaJun 2019',
+        '•Trained on the cryogenic system; helped put data-driven workflow changes in place that reduced waste and raised',
+        'productivity',
+        'Intern, Sample Petroleum Limited, Springfield, IndiaMay 2019 – Jun 2019',
+        '•Studied fuel production processes and analyzed market trends',
+        'EDUCATION', 'Master of Science in Business Analytics, Example University, Chicago, IL Sep 2024 – Jun 2026',
+    ].join(NL);
+    const p = parseResume(text);
+    assert.deepEqual(p.experience.map(e => e.bullets.length), [2, 2, 1, 1]);
+    assert.match(p.experience[0].header[0], /^Data Analytics Intern, Northwind Mentor, Remote \(India\) \| Mar 2024 – Jun 2024$/);
+    assert.ok(p.experience[0].bullets[0].endsWith('customer segment'), 'a wrapped bullet is one bullet');
+    assert.ok(p.experience[2].bullets[0].endsWith('raised productivity'), 'a one-word wrapped line is not a role');
+    assert.deepEqual(p.skillGroups.map(g => g.label), ['Languages and Data', 'Analytics and BI', 'ML and AI']);
+    assert.ok(p.skillGroups[1].items.includes('DCF valuation') && !p.skills.some(s => /ML and AI/.test(s)), 'wrapped group lines do not swallow the next label');
+    const out = await optimizeForAts({ resumeText: text, job: { title: 'Data Analyst', company: 'Acme', description: 'SQL, Python, Tableau, forecasting' }, profile: { full_name: 'Jane Q Example' }, target: 90 });
+    assert.equal(out.best.built.factCheck.ok, true);
+    assert.equal(out.best.built.pages, 1);
+});

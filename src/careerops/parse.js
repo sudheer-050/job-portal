@@ -8,10 +8,15 @@
 // ("PROJECTS & PORTFOLIO"). The reader below handles all of that, and never changes a word: it only decides which line
 // belongs to which role, bullet or section, and joins wrapped lines back together.
 
-const BULLET = /^\s*[-*•·▪▫◦‣–—]\s+/;
+// A dash-style bullet needs a space after it ("-5% cost" is not a bullet); a real bullet glyph does not (PDF text often has "•Built").
+const BULLET = /^\s*(?:[-*–—]\s+|[•·▪▫◦‣]\s*)/;
 const DATE_RANGE = /((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+)?(19|20)\d{2}\s*(?:[-–—]|to)\s*(?:((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+)?(19|20)\d{2}|present|current|now)|\b(19|20)\d{2}\b/i;
 
-const clean = value => String(value || '').replace(/ /g, ' ').replace(/[ \t]+/g, ' ').trim();
+// A date glued to the text before it by a PDF's right-aligned column ("IndiaAug 2023 – Feb 2024") gets a separator back.
+const MONTH = '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\\.?';
+const GLUED_DATE = new RegExp(`([a-z)])(${MONTH}\\s+(?:19|20)\\d{2}\\s*[-–—]\\s*(?:${MONTH}\\s+)?(?:(?:19|20)\\d{2}|Present|Current))`, 'g');
+const GLUED_SINGLE = new RegExp(`([a-z)])(${MONTH}\\s+(?:19|20)\\d{2})$`, 'gm');
+const clean = value => String(value || '').replace(/ /g, ' ').replace(/[ \t]+/g, ' ').replace(GLUED_DATE, '$1 | $2').replace(GLUED_SINGLE, '$1 | $2').trim();
 
 // ---------------------------------------------------------------------------------------------
 // Headings
@@ -135,7 +140,8 @@ function parseEntries(rawLines, { wrapWidth: known } = {}) {
         const startsEntry = ownDate || nextLineHasDate(index);   // a role heading carries its dates, or is followed by them
         if (current && current.bullets.length) {
             // after a bullet: this is the rest of that bullet (wrapped text) unless a new role or project starts here
-            const wrapped = !startsEntry && (isLong(previous) || (/^[a-z(,;]/.test(text) && !dateAhead(index)));
+            // a lowercase start right after a full-width line is the rest of that bullet, even when dates follow on the next line
+            const wrapped = (!startsEntry && (isLong(previous) || (/^[a-z(,;]/.test(text) && !dateAhead(index)))) || (/^[a-z]/.test(text) && isLong(previous));
             if (wrapped) {
                 const last = current.bullets.length - 1;
                 current.bullets[last] = joinWrapped(current.bullets[last], text);
