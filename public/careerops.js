@@ -194,10 +194,27 @@
             '<div class="co-row"><button type="button" class="btn btn-primary" id="coBuildBtn">Build &amp; optimise to target</button>' +
             (state.ai && state.ai.configured ? '<button type="button" class="btn btn-ghost" id="coPreviewAi">Preview AI wording</button>' : '') + '</div>' +
             '<p class="co-note">The builder keeps improving the resume — structure, skills you already have, the most relevant bullets, and optional AI wording — until it reaches the target or the honest maximum for this job. It never adds a skill you do not have.</p>' +
-            '<div class="co-error" id="coError" role="alert" hidden></div><div id="coSuggest"></div><div id="coResumeOut"></div>';
+            '<div class="co-error" id="coError" role="alert" hidden></div><div id="coReading"></div><div id="coSuggest"></div><div id="coResumeOut"></div>';
         document.getElementById('coJob').value = state.jobId;
+        loadReading();
         if (state.suggestions) renderSuggestions();
         if (state.resume) renderResumeOut(state.resume);
+    }
+
+    // Shows how the uploaded resume was read. A PDF can scramble lines, and a role that is read wrongly gives a wrong resume.
+    function loadReading() {
+        var holder = document.getElementById('coReading');
+        if (!holder) return;
+        call(API + '/resume-reading').then(function (r) {
+            var roles = r.roles.map(function (role) {
+                return '<li><strong>' + esc(role.heading[0] || 'Role') + '</strong>' + (role.heading.length > 1 ? ' <span class="co-note">' + esc(role.heading.slice(1).join(' · ')) + '</span>' : '') +
+                    ' <span class="co-note">(' + role.bullets.length + ' bullet' + (role.bullets.length === 1 ? '' : 's') + ')</span>' +
+                    '<details><summary class="co-note">Show bullets</summary><ul>' + role.bullets.map(function (b) { return '<li class="co-evidence">' + esc(b) + '</li>'; }).join('') + '</ul></details></li>';
+            }).join('');
+            holder.innerHTML = '<details class="co-card" ' + (r.issues.length ? 'open' : '') + '><summary><strong>How your resume was read</strong> <span class="co-note">' + r.roles.length + ' role' + (r.roles.length === 1 ? '' : 's') + ', ' + r.projects.length + ' project' + (r.projects.length === 1 ? '' : 's') + ', ' + r.certifications.length + ' certification' + (r.certifications.length === 1 ? '' : 's') + ', ' + r.skills + ' skills</span></summary>' +
+                (r.issues.length ? '<div class="co-error" style="display:block" role="status"><strong>Please check:</strong><ul>' + r.issues.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul></div>' : '<p class="co-note">Every role has dates and bullets. If anything below is wrong, upload your resume again (a Word file or a text export reads more reliably than a PDF with columns).</p>') +
+                '<h4>Experience</h4><ul class="co-rules">' + (roles || '<li class="co-note">No roles found.</li>') + '</ul></details>';
+        }).catch(function () { holder.innerHTML = ''; });
     }
 
     function aiBox() {

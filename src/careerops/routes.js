@@ -5,7 +5,7 @@ const { rateLimit } = require('express-rate-limit');
 const { canonicalizeUrl, cleanText } = require('../jobs/core');
 const { evaluateOffer } = require('./evaluate');
 const { checkLiveness } = require('./liveness');
-const { buildCoverLetter, renderHtml, renderMarkdown, tailorResume } = require('./resume');
+const { READER_VERSION, buildCoverLetter, parseResume, readingIssues, renderHtml, renderMarkdown, tailorResume } = require('./resume');
 const { aiConfig, suggestRewrites } = require('./rewrite');
 const { improvementDetails, optimizeForAts } = require('./ats');
 const { pageCount, renderDocument } = require('../documents/export');
@@ -297,6 +297,24 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         res.attachment(file.filename).type(file.contentType).send(file.buffer);
     }));
 
+    // Exactly how Career Ops reads the uploaded resume, so a role that was scrambled by a PDF is easy to spot.
+    app.get(`${BASE}/resume-reading`, requireAuth, asyncRoute(async (req, res) => {
+        const { resumeText } = await context(req.jobUsername);
+        if (!resumeText) return res.status(400).json({ error: 'Upload your resume first.' });
+        const read = parseResume(resumeText);
+        res.json({
+            name: read.name,
+            roles: read.experience.map(entry => ({ heading: entry.header, bullets: entry.bullets })),
+            projects: read.projects.map(entry => ({ title: entry.header[0] || '', bullets: entry.bullets.length })),
+            education: read.education,
+            certifications: read.certifications,
+            skills: read.skills.length,
+            summaryWords: read.summary ? read.summary.split(/\s+/).length : 0,
+            sections: read.sectionCount,
+            issues: readingIssues(read),
+        });
+    }));
+
     app.get(`${BASE}/ai`, requireAuth, (_req, res) => {
         const { configured, model } = aiConfig(env);
         res.json({ configured, model: configured ? model : null });
@@ -512,6 +530,7 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         const status = payload.factCheck.ok ? 'ready_to_submit' : 'needs_review';
         const notes = JSON.stringify({
             source: 'career-ops',
+            reader: READER_VERSION,
             jobFit: { score: payload.score, verdict: payload.verdict.label },
             ats: { score: ats.score, target: ats.target, reached: ats.reached, explanation: ats.explanation },
             changes: payload.changes, warnings: payload.warnings, notEvidenced: payload.keywords.notEvidenced,
@@ -576,6 +595,7 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         if (pageCount(payload.resume.markdown) > 1) throw httpError(422, 'Even after leaving out everything that can go, this resume does not fit on one page. Shorten the header, contact or education lines in your source resume.');
         const notes = JSON.stringify({
             source: 'career-ops',
+            reader: READER_VERSION,
             rewrittenFrom: { status: row.status, previousScore: row.quality_score, reason },
             jobFit: { score: payload.score, verdict: payload.verdict.label },
             ats: { score: ats.score, target: ats.target, reached: ats.reached, explanation: ats.explanation },

@@ -59,7 +59,7 @@ function units(t) {
         // an old role goes whole, never one of the three newest
         if (r >= 3) add(`r:${r}`, 20 - r * 0.5, `the role "${role.header[0] || 'an old role'}"`);
     });
-    if (t.summary) add('summary', 30, 'the summary', true);
+    if (t.summary) add('summary', 95, 'the summary', true);
     return out;
 }
 

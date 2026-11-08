@@ -81,12 +81,20 @@ function trimSummary(summary, keywords = []) {
 }
 
 // ---- roles in reverse chronological order ----
-const RANGE = /((?:19|20)\d{2})\s*(?:[-–—]|to)\s*((?:19|20)\d{2}|present|current|now)/i;
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+const POINT = '(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?\\s+)?(?:19|20)\\d{2}';
+const RANGE = new RegExp(`(${POINT})\\s*(?:[-\u2013\u2014]|to)\\s*(${POINT}|present|current|now)`, 'i');
+// "March 2024" -> a number of months, so that "Mar 2024 - Jun 2024" sorts before "Aug 2023 - Feb 2024" but after "Feb 2021 - Jul 2023"
+function months(point, endOfRange) {
+    if (/^(present|current|now)$/i.test(point)) return 9999 * 12;
+    const year = Number((point.match(/(?:19|20)\d{2}/) || [])[0]);
+    const month = MONTHS[(point.match(/^[A-Za-z]{3}/) || [''])[0].toLowerCase()];
+    return year * 12 + (month || (endOfRange ? 12 : 1));
+}
 function rangeOf(entry) {
     const match = RANGE.exec((entry.header || []).join(' '));
     if (!match) return null;
-    const end = /^\d/.test(match[2]) ? Number(match[2]) : 9999;
-    return { start: Number(match[1]), end };
+    return { start: months(match[1], false), end: months(match[2], true) };
 }
 function chronological(experience) {
     const ranges = experience.map(rangeOf);
@@ -112,12 +120,15 @@ function applyResumeRules(tailored, { keywords = [] } = {}) {
     if (t.skills.length > LIMITS.skillsMax) { changes.push(`Kept the ${LIMITS.skillsMax} most relevant skills (a longer list stops being read).`); t.skills = t.skills.slice(0, LIMITS.skillsMax); }
 
     let capped = 0;
+    let cappedProjects = 0;
     t.experience.forEach((entry, r) => {
         const cap = r < 2 ? LIMITS.bulletsNewest : LIMITS.bulletsOlder;
         if (entry.bullets.length > cap) { capped += entry.bullets.length - cap; entry.bullets = entry.bullets.slice(0, cap); }
     });
-    (t.projects || []).forEach(entry => { if (entry.bullets.length > LIMITS.projectBullets) { capped += entry.bullets.length - LIMITS.projectBullets; entry.bullets = entry.bullets.slice(0, LIMITS.projectBullets); } });
+    (t.projects || []).forEach(entry => { if (entry.bullets.length > LIMITS.projectBullets) { cappedProjects += entry.bullets.length - LIMITS.projectBullets; entry.bullets = entry.bullets.slice(0, LIMITS.projectBullets); } });
     if (capped) changes.push(`Kept at most ${LIMITS.bulletsNewest} bullets for the two newest roles and ${LIMITS.bulletsOlder} for older ones; ${capped} lower-relevance bullet${capped === 1 ? ' was' : 's were'} left out.`);
+
+    if (cappedProjects) changes.push(`Kept at most ${LIMITS.projectBullets} bullets for each project.`);
 
     if (t.experience.length > 1 && chronological(t.experience) === false) {
         const ranges = new Map(t.experience.map(entry => [entry, rangeOf(entry)]));

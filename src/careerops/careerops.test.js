@@ -185,11 +185,14 @@ test('nice-to-have gaps are not disclosed as weaknesses in the cover letter', ()
     assert.ok(!evaluation.blocks.E.honestGaps.some(gap => /snowflake/i.test(gap)));
 });
 
-test('tailoring drops bullets irrelevant to the job but keeps at least three per role', () => {
+test('tailoring keeps every bullet of every role, most relevant first, and cuts only at the cap', () => {
     const result = tailorResume({ resumeText: RESUME, job: job(), profile });
     const acme = result.tailored.experience[0].bullets;
-    assert.ok(!acme.some(bullet => /offsite/.test(bullet)));
-    assert.equal(acme.length, 3);
+    // nothing is dropped for being less relevant: all of the role's bullets are there (up to the cap of six)
+    assert.equal(acme.length, Math.min(6, result.tailored.experience[0].sourceBullets.length));
+    // the irrelevant one (organising an offsite) is last rather than gone
+    assert.ok(/offsite/.test(acme[acme.length - 1]));
+    assert.ok(/SQL|Tableau|Python/.test(acme[0]), 'the most relevant bullet comes first');
     assert.ok(result.tailored.experience[1].bullets.length >= 2);
     assert.equal(result.factCheck.ok, true);
 });
