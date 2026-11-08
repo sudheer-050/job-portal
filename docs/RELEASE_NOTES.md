@@ -14,6 +14,8 @@
 - Key numbers are bold; the summary prefers sentences with numbers; the job's top skills must appear in the headline, summary or top of the skills list.
 - Roles that ended more than 10 years ago show as one line each under Earlier Experience, and a role cut to fit one page shrinks to one line before it is dropped.
 - Cover letters open with the role and company, quote up to three of your best results (numbers first) word for word, and are checked against 8 rules; a recruiter verdict (Shortlist / Maybe / Reject) with quick fixes is shown.
+- Resume layout follows the one-page sample: dates against the right margin, coloured section headings, skills grouped under their own category labels when your resume has them.
+- Bullets with no number are listed as "[ADD METRIC]" questions for you to answer; nothing is ever filled in for you.
 - Jobs show how long ago they were posted, with an apply-soon hint for the first week. Existing drafts rebuild automatically.
 
 

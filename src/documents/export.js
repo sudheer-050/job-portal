@@ -36,10 +36,15 @@ function parseMarkdown(markdown) {
         const line = raw.replace(/\s+$/, '');
         if (!line.trim()) continue;
         const heading = line.match(/^(#{1,6})\s+(.*)$/);
-        if (heading) { blocks.push({ type: `h${Math.min(3, heading[1].length)}`, runs: parseInline(heading[2]) }); continue; }
+        if (heading) {
+            const [leftText, ...rightText] = heading[2].split('\t');
+            blocks.push({ type: `h${Math.min(3, heading[1].length)}`, runs: parseInline(leftText), right: rightText.length ? parseInline(rightText.join(' ')) : null });
+            continue;
+        }
         if (/^\s*[-*•]\s+/.test(line)) { blocks.push({ type: 'bullet', runs: parseInline(line.replace(/^\s*[-*•]\s+/, '')) }); continue; }
         if (/^\s*---+\s*$/.test(line)) continue;
-        blocks.push({ type: 'p', runs: parseInline(line.trim()) });
+        const [leftText, ...rightText] = line.trim().split('\t');
+        blocks.push({ type: 'p', runs: parseInline(leftText), right: rightText.length ? parseInline(rightText.join(' ')) : null });
     }
     return blocks.filter(block => block.runs.length);
 }
@@ -117,25 +122,26 @@ const xmlEscape = value => String(value).replace(/[\u0000-\u0008\u000b\u000c\u00
 
 const DOCX_STYLE = {
     h1: { size: 36, bold: true, before: 0, after: 60 },
-    h2: { size: 24, bold: true, before: 220, after: 60, rule: true },
+    h2: { size: 24, bold: true, before: 220, after: 60, rule: true, color: '1F3F73' },
     h3: { size: 22, bold: true, before: 140, after: 20 },
     p: { size: 21, before: 0, after: 90 },
     bullet: { size: 21, before: 0, after: 30 },
 };
 
 function docxRun(run, style) {
-    const props = `${run.bold || style.bold ? '<w:b/>' : ''}${run.italic ? '<w:i/>' : ''}<w:sz w:val="${style.size}"/>`;
+    const props = `${run.bold || style.bold ? '<w:b/>' : ''}${run.italic ? '<w:i/>' : ''}${style.color ? `<w:color w:val="${style.color}"/>` : ''}<w:sz w:val="${style.size}"/>`;
     return `<w:r><w:rPr>${props}</w:rPr><w:t xml:space="preserve">${xmlEscape(run.text)}</w:t></w:r>`;
 }
 
 function docxParagraph(block) {
     const style = DOCX_STYLE[block.type];
     const indent = block.type === 'bullet' ? '<w:ind w:left="360" w:hanging="260"/>' : '';
-    const rule = style.rule ? '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="888888"/></w:pBdr>' : '';
+    const rule = style.rule ? `<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="${style.color || '888888'}"/></w:pBdr>` : '';
     const keep = block.type === 'h2' || block.type === 'h3' ? '<w:keepNext/>' : '';
     const lead = block.type === 'bullet' ? `<w:r><w:rPr><w:sz w:val="${style.size}"/></w:rPr><w:t xml:space="preserve">•\t</w:t></w:r>` : '';
-    const tabs = block.type === 'bullet' ? '<w:tabs><w:tab w:val="left" w:pos="360"/></w:tabs>' : '';
-    return `<w:p><w:pPr>${keep}${rule}${tabs}<w:spacing w:before="${style.before}" w:after="${style.after}"/>${indent}</w:pPr>${lead}${block.runs.map(run => docxRun(run, style)).join('')}</w:p>`;
+    const tabs = block.type === 'bullet' ? '<w:tabs><w:tab w:val="left" w:pos="360"/></w:tabs>' : block.right ? '<w:tabs><w:tab w:val="right" w:pos="10080"/></w:tabs>' : '';
+    const right = block.right ? `<w:r><w:tab/></w:r>${block.right.map(run => docxRun(run, { ...style, bold: false, color: '' })).join('')}` : '';
+    return `<w:p><w:pPr>${keep}${rule}${tabs}<w:spacing w:before="${style.before}" w:after="${style.after}"/>${indent}</w:pPr>${lead}${block.runs.map(run => docxRun(run, style)).join('')}${right}</w:p>`;
 }
 
 function toDocx(markdown, { title = 'Document' } = {}) {
@@ -201,7 +207,7 @@ const textWidth = (bytes, size, bold) => bytes.reduce((sum, byte) => sum + glyph
 
 const PDF_STYLE = {
     h1: { size: 19, font: 'F2', bold: true, before: 0, after: 4, lead: 1.2 },
-    h2: { size: 12, font: 'F2', bold: true, before: 12, after: 3, lead: 1.25, rule: true },
+    h2: { size: 12, font: 'F2', bold: true, before: 12, after: 3, lead: 1.25, rule: true, color: [0.12, 0.25, 0.45] },
     h3: { size: 10.5, font: 'F2', bold: true, before: 7, after: 1, lead: 1.25 },
     p: { size: 10, font: 'F1', before: 0, after: 5, lead: 1.35 },
     bullet: { size: 10, font: 'F1', before: 0, after: 2, lead: 1.35, indent: 14 },
@@ -261,7 +267,10 @@ function layoutPages(markdown, reserve = 0) {
     for (const block of parseMarkdown(markdown)) {
         const style = PDF_STYLE[block.type];
         const left = page.margin + (style.indent || 0);
-        const lines = wrapRuns(block.runs, style, page.width - page.margin - left);
+        // dates against the right margin: the left text wraps in what is left of the line
+        const rightBytes = block.right ? toWinAnsi(block.right.map(run => run.text).join('')) : null;
+        const rightWidth = rightBytes ? textWidth(rightBytes, style.size, false) : 0;
+        const lines = wrapRuns(block.runs, style, page.width - page.margin - left - (rightWidth ? rightWidth + 12 : 0));
         const leading = style.size * style.lead;
         // keep a heading together with the first line of what follows
         const needed = style.before + leading * (block.type.startsWith('h') ? 2 : Math.min(lines.length, 2));
@@ -272,6 +281,8 @@ function layoutPages(markdown, reserve = 0) {
             y -= leading;
             const ops = pages[pages.length - 1];
             if (block.type === 'bullet' && index === 0) ops.push(`BT /F1 ${style.size} Tf ${page.margin + 2} ${y.toFixed(2)} Td (\\225) Tj ET`);
+            if (rightBytes && index === 0) ops.push(`BT /F1 ${style.size} Tf ${(page.width - page.margin - rightWidth).toFixed(2)} ${y.toFixed(2)} Td ${pdfLiteral(rightBytes)} Tj ET`);
+            if (style.color) ops.push(`${style.color.join(' ')} rg`);
             // one text object per run of same-styled words, spaces included, so text extraction keeps the spaces
             let x = left;
             let segment = null;
@@ -288,8 +299,9 @@ function layoutPages(markdown, reserve = 0) {
                 segment.bytes.push(...word.bytes);
             }
             emit();
+            if (style.color) ops.push('0 g');
             if (style.rule && index === lines.length - 1) {
-                ops.push(`0.6 G 0.5 w ${page.margin} ${(y - 3).toFixed(2)} m ${page.width - page.margin} ${(y - 3).toFixed(2)} l S`);
+                ops.push(`${style.color ? `${style.color.join(' ')} RG` : '0.6 G'} 0.5 w ${page.margin} ${(y - 3).toFixed(2)} m ${page.width - page.margin} ${(y - 3).toFixed(2)} l S`);
                 y -= 3;
             }
         });
@@ -370,4 +382,4 @@ function renderDocument({ markdown, format = 'md', baseName = 'document', title 
     return { buffer, contentType: spec.contentType, filename: `${name}.${spec.extension}` };
 }
 
-module.exports = { pageCount, paragraphLines, FORMATS, HELVETICA, HELVETICA_BOLD, crc32, parseMarkdown, renderDocument, safeFilename, textWidth, toDocx, toPdf, toWinAnsi, zipStore };
+module.exports = { layoutPages, pageCount, paragraphLines, FORMATS, HELVETICA, HELVETICA_BOLD, crc32, parseMarkdown, renderDocument, safeFilename, textWidth, toDocx, toPdf, toWinAnsi, zipStore };

@@ -83,6 +83,24 @@ function boldMetrics(text) {
 const POINT = '(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?\\s+)?(?:19|20)\\d{2}';
 const RANGE = new RegExp(`(${POINT}\\s*(?:[-\\u2013\\u2014]|to)\\s*(?:${POINT}|present|current|now))`, 'i');
 
+/** The date range in a header line ("February 2021 – July 2023"), or ''. */
+function earlierDates(line) { return (RANGE.exec(String(line || '')) || [])[1] || ''; }
+
+/**
+ * Bullets that carry no number. Never filled in for the person: each becomes a question, "[ADD METRIC] ...", asking for a
+ * figure only they know (how many, how much, how often, how long). The most recent roles come first.
+ */
+function metricGaps(tailored, limit = 5) {
+    const out = [];
+    for (const [r, entry] of (tailored.experience || []).entries()) {
+        for (const bullet of entry.bullets) {
+            if (/\d/.test(bullet)) continue;
+            out.push({ role: (entry.header[0] || '').slice(0, 80), line: bullet, prompt: `[ADD METRIC] ${bullet.length > 110 ? `${bullet.slice(0, 107)}...` : bullet} — how many, how much, how often or how long? Add it only if it is true.`, recent: r });
+        }
+    }
+    return out.sort((a, b) => a.recent - b.recent).slice(0, limit).map(({ role, line, prompt }) => ({ role, line, prompt }));
+}
+
 /** "Junior Engineer | Hetero Labs Limited (February 2021 – July 2023)": the role's own words, in one line. */
 function earlierLine(entry) {
     const title = (entry.header && entry.header[0]) || '';
@@ -158,5 +176,5 @@ function recruiterVerdict({ fit = 0, ats = 0, resumeRules = null, letterRules = 
 }
 
 module.exports = {
-    LETTER_CLICHES, LETTER_LIMITS, boldMetrics, checkCoverLetter, displayForm, earlierLine, headlineFor, headlineIsEvidenced, newestTitle, paragraphLines, pickAchievements, recruiterVerdict, wordCount,
+    LETTER_CLICHES, LETTER_LIMITS, boldMetrics, checkCoverLetter, displayForm, earlierDates, earlierLine, metricGaps, headlineFor, headlineIsEvidenced, newestTitle, paragraphLines, pickAchievements, recruiterVerdict, wordCount,
 };

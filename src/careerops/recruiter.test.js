@@ -185,3 +185,43 @@ test('the recruiter’s verdict is shortlist, maybe or reject, with reasons and 
     assert.equal(recruiterVerdict({ fit: 4.6, ats: 95, legitimacy: 'Suspicious' }).verdict, 'Reject');
     assert.ok(shortlist.reasons.length >= 3);
 });
+
+const { layoutPages, toDocx } = require('../documents/export');
+const { metricGaps } = require('./recruiter');
+
+test('dates sit against the right margin in the PDF and as a right tab in Word', () => {
+    const md = '## Experience\n\n### Data Analyst | Acme\tJan 2020 - Present\nChicago, IL\n- Did a thing\n';
+    const ops = layoutPages(md).flat().join('\n');
+    const m = ops.match(/BT \/F1 10\.5 Tf ([\d.]+) [\d.]+ Td \(Jan 2020 - Present\) Tj ET/);
+    assert.ok(m && Number(m[1]) > 400, 'dates start well right of the left margin');
+    assert.ok(/0\.12 0\.25 0\.45 rg/.test(ops) && /0\.12 0\.25 0\.45 RG/.test(ops), 'section headings are coloured');
+    const docx = toDocx(md).toString('latin1');
+    assert.ok(docx.length > 0);
+});
+
+test('a role’s dates move to the right margin and the location stays under the title', () => {
+    const built = tailorResume({ resumeText: RESUME, job: JOB, profile });
+    const md = renderMarkdown(built.tailored);
+    assert.match(md, /### Senior Data Analyst — Acme Corp, Chicago IL\t2022 - Present/);
+    assert.equal(verifyTailoredFacts(built.tailored, RESUME, profile).ok, true);
+});
+
+test('skills keep their category labels when the resume has them, and only skills still on the page are shown', () => {
+    const text = RESUME.replace(/SKILLS\n.*\n/, 'SKILLS\nLanguages: Python, SQL\nTools: Tableau, Excel, dbt\nCloud: Snowflake\n');
+    const built = tailorResume({ resumeText: text, job: JOB, profile });
+    const md = renderMarkdown(built.tailored);
+    assert.match(md, /\*\*Languages:\*\* .*SQL/);
+    assert.match(md, /\*\*Tools:\*\* /);
+    const trimmed = renderMarkdown({ ...built.tailored, skills: built.tailored.skills.filter(s => !/dbt/i.test(s)) });
+    assert.ok(!/dbt/.test(trimmed.split('## Experience')[0].split('## Skills')[1]));
+    assert.match(renderMarkdown(tailorResume({ resumeText: RESUME, job: JOB, profile }).tailored), /## Skills\n[^*]/, 'an unlabeled list stays a plain list');
+});
+
+test('bullets without a number become a question, never an invented figure', () => {
+    const t = { experience: [{ header: ['Old'], bullets: ['Wrote 3 reports'] }].concat([]) };
+    assert.deepEqual(metricGaps(t), []);
+    const gaps = metricGaps({ experience: [{ header: ['Analyst'], bullets: ['Built dashboards for managers', 'Cut costs 20%'] }] });
+    assert.equal(gaps.length, 1);
+    assert.match(gaps[0].prompt, /^\[ADD METRIC\] Built dashboards for managers/);
+    assert.ok(!/\d/.test(gaps[0].prompt));
+});

@@ -6,7 +6,7 @@
 
 const { countTerm, escapeRegExp, extractKeywords } = require('./keywords');
 const { requirementEvidence } = require('./evidence');
-const { boldMetrics, earlierLine, headlineFor, headlineIsEvidenced, pickAchievements } = require('./recruiter');
+const { boldMetrics, earlierDates, earlierLine, headlineFor, headlineIsEvidenced, pickAchievements } = require('./recruiter');
 const { validateRewrite } = require('./rewrite');
 
 const { BULLET, DATE_RANGE, certificationLines, clean, headingType, joinWrapped, parseEntries, unwrapLines, wrapWidthOf } = require('./parse');
@@ -35,6 +35,16 @@ function splitList(lines) {
         }
     }
     return [...new Set(items)];
+}
+
+// "Languages: Python, SQL" lines keep their category label; a skills section with fewer than two labels is just a list.
+function skillGroupsOf(lines) {
+    const groups = [];
+    for (const line of lines) {
+        const m = String(line).match(/^\s*([A-Z][A-Za-z0-9 &/+-]{1,32}?)\s*:\s*(.+)$/);
+        if (m) groups.push({ label: m[1].trim(), items: splitList([m[2]]) });
+    }
+    return groups.length >= 2 ? groups : [];
 }
 
 function parseResume(text) {
@@ -69,6 +79,7 @@ function parseResume(text) {
         summary: clean(byType('summary').flatMap(section => section.lines.map(clean).filter(Boolean)).reduce((text, line) => (text ? joinWrapped(text, line) : line), '')),
         experience: byType('experience').flatMap(section => parseEntries(section.lines, { wrapWidth })),
         skills: splitList(byType('skills').flatMap(section => unwrapLines(section.lines, { wrapWidth }))),
+        skillGroups: skillGroupsOf(byType('skills').flatMap(section => unwrapLines(section.lines, { wrapWidth }))),
         education: byType('education').flatMap(section => unwrapLines(section.lines)),
         projects: byType('projects').flatMap(section => parseEntries(section.lines, { wrapWidth })),
         certifications: byType('certifications').flatMap(section => certificationLines(section.lines, { wrapWidth })),
@@ -193,7 +204,7 @@ function tailorResume({ resumeText, job = {}, profile = {}, maxBullets = 6, rewr
             location: [profile.city, profile.state].filter(Boolean).join(', '),
             links: [...new Set([...parsed.contact.links, profile.linkedin_url, profile.portfolio_url].filter(Boolean))],
         },
-        summary, summaryGenerated, skills, experience,
+        summary, summaryGenerated, skills, skillGroups: parsed.skillGroups || [], experience,
         projects, education: parsed.education, certifications: parsed.certifications, other: parsed.other,
     };
     const factCheck = verifyTailoredFacts(tailored, resumeText, profile, appliedRewrites);
@@ -238,6 +249,28 @@ function verifyTailoredFacts(tailored, resumeText, profile = {}, appliedRewrites
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// "Role | Company" with its dates against the right margin; whatever else is on the dates line (a location) stays under it.
+function entryLines(entry) {
+    const [first, second, ...rest] = entry.header;
+    const dates = second && (earlierDates(second) || '');
+    if (!dates) return entry.header.map((line, i) => (i === 0 ? `### ${line}` : line));
+    const leftover = second.replace(dates, '').replace(/^[\s|,·–—-]+|[\s|,·–—-]+$/g, '').replace(/\s*[|·]\s*[|·]\s*/g, ' | ');
+    return [`### ${first}\t${dates}`, ...(leftover ? [leftover] : []), ...rest];
+}
+// Skills under their own category labels (filtered to the skills that are still on the page), anything else under "Other".
+function skillGroupsFor(t) {
+    const keep = new Set(t.skills.map(s => s.toLowerCase()));
+    const used = new Set();
+    const groups = (t.skillGroups || []).map(g => ({ label: g.label, items: g.items.filter(i => keep.has(i.toLowerCase())) })).filter(g => g.items.length);
+    groups.forEach(g => g.items.forEach(i => used.add(i.toLowerCase())));
+    if (!groups.length) return [];
+    const rest = t.skills.filter(s => !used.has(s.toLowerCase()));
+    return rest.length ? [...groups, { label: 'Other', items: rest }] : groups;
+}
+function skillLines(t) {
+    const groups = skillGroupsFor(t);
+    return groups.length ? groups.map(g => `**${g.label}:** ${g.items.join(', ')}`) : [t.skills.join(', ')];
+}
 function renderMarkdown(t) {
     const out = [];
     if (t.name) out.push(`# ${t.name}`);
@@ -245,15 +278,15 @@ function renderMarkdown(t) {
     if (contact.length) out.push(contact.join(' · '));
     if (t.headline) out.push(`**${t.headline}**`);
     if (t.summary) out.push('', '## Summary', boldMetrics(t.summary));
-    if (t.skills.length) out.push('', '## Skills', t.skills.join(', '));
+    if (t.skills.length) out.push('', '## Skills', ...skillLines(t));
     if (t.experience.length) {
         out.push('', '## Experience');
-        for (const entry of t.experience) { out.push('', ...entry.header.map((line, i) => (i === 0 ? `### ${line}` : line)), ...entry.bullets.map(b => `- ${boldMetrics(b)}`)); }
+        for (const entry of t.experience) { out.push('', ...entryLines(entry), ...entry.bullets.map(b => `- ${boldMetrics(b)}`)); }
     }
     if ((t.earlier || []).length) out.push('', '## Earlier Experience', ...t.earlier);
     if (t.projects.length) {
         out.push('', '## Projects');
-        for (const entry of t.projects) { out.push('', ...entry.header.map((line, i) => (i === 0 ? `### ${line}` : line)), ...entry.bullets.map(b => `- ${boldMetrics(b)}`)); }
+        for (const entry of t.projects) { out.push('', ...entryLines(entry), ...entry.bullets.map(b => `- ${boldMetrics(b)}`)); }
     }
     if (t.education.length) out.push('', '## Education', ...t.education);
     if (t.certifications.length) out.push('', '## Certifications', ...t.certifications.map(c => `- ${c}`));
@@ -267,13 +300,13 @@ function renderHtml(t) {
     const contact = [t.contact.email, t.contact.phone, t.contact.location, ...t.contact.links].filter(Boolean).map(escapeHtml).join(' &middot; ');
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(t.name || 'Resume')}</title><style>
 body{font:11pt/1.4 Arial,Helvetica,sans-serif;color:#111;max-width:760px;margin:24px auto;padding:0 20px}
-h1{font-size:20pt;margin:0}h2{font-size:12pt;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #999;margin:18px 0 6px;padding-bottom:2px}
+h1{font-size:20pt;margin:0}h2{color:#1f3f73;font-size:12pt;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #999;margin:18px 0 6px;padding-bottom:2px}
 .contact{color:#333;margin:4px 0 0}.headline{font-weight:700;margin:4px 0 0}.role{font-weight:700;margin:10px 0 0}.meta{margin:0;color:#333}ul{margin:4px 0 0 18px;padding:0}li{margin:2px 0}
 @media print{body{margin:0;max-width:none}}</style></head><body>
 <h1>${escapeHtml(t.name)}</h1><p class="contact">${contact}</p>
 ${t.headline ? `<p class="headline">${escapeHtml(t.headline)}</p>` : ''}
 ${t.summary ? `<h2>Summary</h2><p>${richHtml(boldMetrics(t.summary))}</p>` : ''}
-${t.skills.length ? `<h2>Skills</h2><p>${escapeHtml(t.skills.join(', '))}</p>` : ''}
+${t.skills.length ? `<h2>Skills</h2>${skillLines(t).map(l => `<p class="meta">${richHtml(l)}</p>`).join('')}` : ''}
 ${t.experience.length ? `<h2>Experience</h2>${t.experience.map(entry).join('')}` : ''}
 ${(t.earlier || []).length ? `<h2>Earlier Experience</h2>${t.earlier.map(l => `<p class="meta">${escapeHtml(l)}</p>`).join('')}` : ''}
 ${t.projects.length ? `<h2>Projects</h2>${t.projects.map(entry).join('')}` : ''}
