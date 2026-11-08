@@ -8,31 +8,9 @@ const { countTerm, escapeRegExp, extractKeywords } = require('./keywords');
 const { requirementEvidence } = require('./evidence');
 const { validateRewrite } = require('./rewrite');
 
-const BULLET = /^\s*[-*•·▪▫◦‣–—]\s+/;
-const DATE_RANGE = /((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+)?(19|20)\d{2}\s*(?:[-–—]|to)\s*(?:((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+)?(19|20)\d{2}|present|current|now)|\b(19|20)\d{2}\b/i;
+const { BULLET, DATE_RANGE, certificationLines, clean, headingType, joinWrapped, parseEntries, unwrapLines, wrapWidthOf } = require('./parse');
 
-const SECTION_TYPES = [
-    ['summary', /^(professional\s+)?(summary|profile|objective|about( me)?|career summary)$/i],
-    ['experience', /^((work|professional|relevant|employment)\s+)?(experience|history)|^employment( history)?$/i],
-    ['education', /^(education|academic background|academics|education (?:&|and) training)$/i],
-    // Sections a resume should not carry (references, hobbies, personal details). Recognised so they are left out
-    // instead of being absorbed into the section above them.
-    ['filler', /^(references?|hobbies( (?:&|and) interests)?|personal (?:details|information)|declaration)$/i],
-    ['skills', /^((technical|core|key|professional)\s+)?(skills|competencies|technologies|tools|expertise)(\s+(?:&|and)\s+\w+)?$/i],
-    ['projects', /^(selected |personal |key |academic )?projects?$/i],
-    ['certifications', /^(certifications?|licenses?(?: (?:&|and) certifications?)?|training|courses)$/i],
-    ['other', /^(awards?|honou?rs|publications?|volunteer(?:ing)?( experience)?|languages|interests|activities|leadership|achievements)$/i],
-];
-
-const clean = value => String(value || '').replace(/ /g, ' ').replace(/[ \t]+/g, ' ').trim();
 const squash = value => clean(value).toLowerCase().replace(/[^a-z0-9+#%$.]+/g, ' ').trim();
-
-function sectionTypeOf(line) {
-    const text = clean(line).replace(/[:：]\s*$/, '');
-    if (!text || text.length > 40 || /[.@]/.test(text.replace(/&/g, ''))) return null;
-    for (const [type, pattern] of SECTION_TYPES) if (pattern.test(text)) return type;
-    return null;
-}
 
 function parseContact(lines) {
     const head = lines.slice(0, 10).join(' | ');
@@ -41,34 +19,6 @@ function parseContact(lines) {
         phone: (head.match(/(?:\+?\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}/) || [])[0] || '',
         links: [...new Set((head.match(/(?:https?:\/\/)?(?:www\.)?(?:linkedin\.com|github\.com)\/[\w\-./]+/gi) || []))],
     };
-}
-
-function parseExperience(lines) {
-    const entries = [];
-    let current = null;
-    for (const raw of lines) {
-        const line = clean(raw);
-        if (!line) continue;
-        const isBullet = BULLET.test(raw);
-        if (isBullet) {
-            if (!current) { current = { header: [], bullets: [] }; entries.push(current); }
-            current.bullets.push(line.replace(BULLET, '').trim());
-            continue;
-        }
-        const hasDate = DATE_RANGE.test(line);
-        const startsLower = /^[a-z(]/.test(line);
-        const lastBullet = current && current.bullets.length;
-        if (lastBullet && startsLower && !hasDate) {
-            current.bullets[current.bullets.length - 1] += ` ${line}`; // wrapped bullet text from PDF extraction
-            continue;
-        }
-        if (!current || (lastBullet && (hasDate || line.length < 90))) {
-            current = { header: [], bullets: [] };
-            entries.push(current);
-        }
-        current.header.push(line);
-    }
-    return entries;
 }
 
 function splitList(lines) {
@@ -92,9 +42,16 @@ function parseResume(text) {
     const sections = [];
     let current = { type: 'header', title: '', lines: [] };
     sections.push(current);
+    let known = false; // capitals-only headings only count once a real section has been seen (before that, the first lines are the name)
+    // PDF text wraps at a fixed width: a line that fills it and does not end a sentence is continued on the next line
+    const wrapWidth = wrapWidthOf(nonEmpty.map(clean));
+    let previous = '';
     for (const line of lines) {
-        const type = sectionTypeOf(line);
+        const afterWrapped = wrapWidth > 0 && previous.length >= wrapWidth * 0.8 && !/[.!?:]$/.test(previous);
+        const type = headingType(line, { known, afterWrapped });
+        if (clean(line)) previous = clean(line);
         if (type) {
+            known = true;
             current = { type, title: clean(line).replace(/[:：]\s*$/, ''), lines: [] };
             sections.push(current);
         } else current.lines.push(line);
@@ -108,15 +65,31 @@ function parseResume(text) {
         contact: parseContact(headerLines.length ? headerLines : nonEmpty),
         headerLines,
         droppedFiller: byType('filler').map(section => section.title),
-        summary: clean(byType('summary').flatMap(section => section.lines).join(' ')),
-        experience: byType('experience').flatMap(section => parseExperience(section.lines)),
-        skills: splitList(byType('skills').flatMap(section => section.lines)),
-        education: byType('education').flatMap(section => section.lines.map(clean).filter(Boolean)),
-        projects: byType('projects').flatMap(section => parseExperience(section.lines)),
-        certifications: byType('certifications').flatMap(section => section.lines.map(clean).filter(line => line).map(line => line.replace(BULLET, ''))),
-        other: byType('other').map(section => ({ title: section.title, lines: section.lines.map(clean).filter(Boolean) })),
+        summary: clean(byType('summary').flatMap(section => section.lines.map(clean).filter(Boolean)).reduce((text, line) => (text ? joinWrapped(text, line) : line), '')),
+        experience: byType('experience').flatMap(section => parseEntries(section.lines, { wrapWidth })),
+        skills: splitList(byType('skills').flatMap(section => unwrapLines(section.lines, { wrapWidth }))),
+        education: byType('education').flatMap(section => unwrapLines(section.lines)),
+        projects: byType('projects').flatMap(section => parseEntries(section.lines, { wrapWidth })),
+        certifications: byType('certifications').flatMap(section => certificationLines(section.lines, { wrapWidth })),
+        other: byType('other').map(section => ({ title: section.title, lines: unwrapLines(section.lines) })),
         sectionCount: sections.length - 1,
     };
+}
+
+// Things that suggest a role was not read cleanly (a PDF can scramble lines), so the person can check before trusting the result.
+function readingIssues(parsed) {
+    const cut = text => (text.length > 50 ? `${text.slice(0, 49)}…` : text);
+    const issues = [];
+    if (!parsed.experience.length) issues.push('No work experience was found. Use a heading such as “Experience” or “Professional Experience” above your jobs.');
+    parsed.experience.forEach(entry => {
+        const title = cut(entry.header[0] || 'A group of bullets');
+        if (!entry.header.length) { issues.push('A group of bullet points has no role heading above it.'); return; }
+        if (!entry.header.some(line => DATE_RANGE.test(line))) issues.push(`“${title}” has no dates.`);
+        if (/^[a-z]/.test(entry.header[0]) || /[,;]$/.test(entry.header[0])) issues.push(`“${title}” looks like part of a sentence, not a role.`);
+        if (!entry.bullets.length) issues.push(`“${title}” has no bullet points.`);
+        entry.bullets.filter(bullet => bullet.split(/\s+/).length < 4).forEach(bullet => issues.push(`“${title}” has a very short bullet (“${cut(bullet)}”) that may be a broken line.`));
+    });
+    return issues.slice(0, 8);
 }
 
 function lineRelevance(line, keywords) {
@@ -145,10 +118,9 @@ function tailorResume({ resumeText, job = {}, profile = {}, maxBullets = 6, rewr
     const experience = parsed.experience.map(entry => {
         const scored = entry.bullets.map((text, index) => ({ text, index, relevance: lineRelevance(text, keywords) }));
         const ordered = [...scored].sort((a, b) => b.relevance - a.relevance || a.index - b.index);
-        // Keep what is relevant to this job (capped); never leave a role with fewer than three bullets.
-        const floor = Math.min(3, ordered.length);
-        let kept = ordered.filter(item => item.relevance > 0).slice(0, maxBullets);
-        if (kept.length < floor) kept = [...kept, ...ordered.filter(item => !kept.includes(item))].slice(0, floor);
+        // Experience is the heart of a resume: every bullet of every role stays, most relevant first, up to the cap.
+        // The one-page rule, not a keyword filter, decides what has to go.
+        const kept = ordered.slice(0, maxBullets);
         if (kept.some((item, position) => item.index !== scored[position]?.index)) changes.push(`Reordered bullets under “${entry.header[0] || 'role'}” by relevance to this job.`);
         if (ordered.length > kept.length) changes.push(`Trimmed ${ordered.length - kept.length} lower-relevance bullet(s) under “${entry.header[0] || 'role'}” (still in your source resume).`);
         const context = `${entry.header.join(' ')} ${entry.bullets.join(' ')}`;
@@ -162,6 +134,14 @@ function tailorResume({ resumeText, job = {}, profile = {}, maxBullets = 6, rewr
         });
         return { header: entry.header, bullets, sourceBullets: entry.bullets };
     });
+    // Projects: the ones that fit this job best come first, and so do the best bullets inside each (nothing is reworded).
+    const projectScore = entry => lineRelevance(`${entry.header.join(' ')} ${entry.bullets.join(' ')}`, keywords);
+    const projects = parsed.projects
+        .map((entry, index) => ({ entry: { ...entry, bullets: [...entry.bullets].map((text, i) => ({ text, i, r: lineRelevance(text, keywords) })).sort((a, b) => b.r - a.r || a.i - b.i).map(item => item.text) }, index, score: projectScore(entry) }))
+        .sort((a, b) => b.score - a.score || a.index - b.index)
+        .map(item => item.entry);
+    if (projects.some((entry, position) => entry.header[0] !== parsed.projects[position].header[0])) changes.push('Put the projects that fit this job best first.');
+
     if (appliedRewrites.length) changes.push(`Applied ${appliedRewrites.length} approved wording change(s); each was re-checked against your original line.`);
 
     // Skills: resume skills plus the user's saved profile skills, job-relevant first.
@@ -208,7 +188,7 @@ function tailorResume({ resumeText, job = {}, profile = {}, maxBullets = 6, rewr
             links: [...new Set([...parsed.contact.links, profile.linkedin_url, profile.portfolio_url].filter(Boolean))],
         },
         summary, summaryGenerated, skills, experience,
-        projects: parsed.projects, education: parsed.education, certifications: parsed.certifications, other: parsed.other,
+        projects, education: parsed.education, certifications: parsed.certifications, other: parsed.other,
     };
     const factCheck = verifyTailoredFacts(tailored, resumeText, profile, appliedRewrites);
     return {
@@ -216,7 +196,7 @@ function tailorResume({ resumeText, job = {}, profile = {}, maxBullets = 6, rewr
         keywords: { featured: evidencedTerms, notEvidenced: gapKeywords },
         parsedSections: parsed.sectionCount,
         warnings: [
-            ...(parsed.experience.length ? [] : ['No Experience section was detected in your resume, so nothing could be reordered. Use headings like “Experience” or “Work Experience”.']),
+            ...readingIssues(parsed).map(issue => `Check how your resume was read: ${issue}`),
             ...(gapKeywords.length ? [`These job keywords are not evidenced in your resume and were NOT added: ${gapKeywords.slice(0, 6).join(', ')}.`] : []),
         ],
     };
@@ -315,4 +295,4 @@ function buildCoverLetter({ resumeText, job = {}, profile = {}, requirements = [
     };
 }
 
-module.exports = { DATE_RANGE, buildCoverLetter, parseResume, renderHtml, renderMarkdown, tailorResume, verifyTailoredFacts };
+module.exports = { readingIssues, DATE_RANGE, buildCoverLetter, parseResume, renderHtml, renderMarkdown, tailorResume, verifyTailoredFacts };

@@ -5,7 +5,7 @@ const { rateLimit } = require('express-rate-limit');
 const { canonicalizeUrl, cleanText } = require('../jobs/core');
 const { evaluateOffer } = require('./evaluate');
 const { checkLiveness } = require('./liveness');
-const { buildCoverLetter, renderHtml, renderMarkdown, tailorResume } = require('./resume');
+const { buildCoverLetter, parseResume, readingIssues, renderHtml, renderMarkdown, tailorResume } = require('./resume');
 const { aiConfig, suggestRewrites } = require('./rewrite');
 const { improvementDetails, optimizeForAts } = require('./ats');
 const { pageCount, renderDocument } = require('../documents/export');
@@ -295,6 +295,24 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         if (!file) return res.status(400).json({ error: 'Choose pdf, docx or md.' });
         res.set('X-Content-Type-Options', 'nosniff');
         res.attachment(file.filename).type(file.contentType).send(file.buffer);
+    }));
+
+    // Exactly how Career Ops reads the uploaded resume, so a role that was scrambled by a PDF is easy to spot.
+    app.get(`${BASE}/resume-reading`, requireAuth, asyncRoute(async (req, res) => {
+        const { resumeText } = await context(req.jobUsername);
+        if (!resumeText) return res.status(400).json({ error: 'Upload your resume first.' });
+        const read = parseResume(resumeText);
+        res.json({
+            name: read.name,
+            roles: read.experience.map(entry => ({ heading: entry.header, bullets: entry.bullets })),
+            projects: read.projects.map(entry => ({ title: entry.header[0] || '', bullets: entry.bullets.length })),
+            education: read.education,
+            certifications: read.certifications,
+            skills: read.skills.length,
+            summaryWords: read.summary ? read.summary.split(/\s+/).length : 0,
+            sections: read.sectionCount,
+            issues: readingIssues(read),
+        });
     }));
 
     app.get(`${BASE}/ai`, requireAuth, (_req, res) => {
