@@ -295,4 +295,8 @@ function buildCoverLetter({ resumeText, job = {}, profile = {}, requirements = [
     };
 }
 
-module.exports = { readingIssues, DATE_RANGE, buildCoverLetter, parseResume, renderHtml, renderMarkdown, tailorResume, verifyTailoredFacts };
+// Bumped whenever the way a resume is read changes in a way that makes older drafts wrong. Drafts record the version that built them,
+// and a draft built by an older reader is rebuilt automatically.
+const READER_VERSION = 2;
+
+module.exports = { READER_VERSION, readingIssues, DATE_RANGE, buildCoverLetter, parseResume, renderHtml, renderMarkdown, tailorResume, verifyTailoredFacts };

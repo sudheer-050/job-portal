@@ -5,7 +5,7 @@ const { rateLimit } = require('express-rate-limit');
 const { canonicalizeUrl, cleanText } = require('../jobs/core');
 const { evaluateOffer } = require('./evaluate');
 const { checkLiveness } = require('./liveness');
-const { buildCoverLetter, parseResume, readingIssues, renderHtml, renderMarkdown, tailorResume } = require('./resume');
+const { READER_VERSION, buildCoverLetter, parseResume, readingIssues, renderHtml, renderMarkdown, tailorResume } = require('./resume');
 const { aiConfig, suggestRewrites } = require('./rewrite');
 const { improvementDetails, optimizeForAts } = require('./ats');
 const { pageCount, renderDocument } = require('../documents/export');
@@ -530,6 +530,7 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         const status = payload.factCheck.ok ? 'ready_to_submit' : 'needs_review';
         const notes = JSON.stringify({
             source: 'career-ops',
+            reader: READER_VERSION,
             jobFit: { score: payload.score, verdict: payload.verdict.label },
             ats: { score: ats.score, target: ats.target, reached: ats.reached, explanation: ats.explanation },
             changes: payload.changes, warnings: payload.warnings, notEvidenced: payload.keywords.notEvidenced,
@@ -594,6 +595,7 @@ function registerCareerOps(app, { pool, requireAuth, asyncRoute, ready, env = pr
         if (pageCount(payload.resume.markdown) > 1) throw httpError(422, 'Even after leaving out everything that can go, this resume does not fit on one page. Shorten the header, contact or education lines in your source resume.');
         const notes = JSON.stringify({
             source: 'career-ops',
+            reader: READER_VERSION,
             rewrittenFrom: { status: row.status, previousScore: row.quality_score, reason },
             jobFit: { score: payload.score, verdict: payload.verdict.label },
             ats: { score: ats.score, target: ats.target, reached: ats.reached, explanation: ats.explanation },

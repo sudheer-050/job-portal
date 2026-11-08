@@ -355,6 +355,7 @@ function requireAuth(req, res, next) {
 
 const { pageCount, paragraphLines, renderDocument } = require('./documents/export');
 const { LIMITS: RESUME_LIMITS, RULES_TEXT } = require('./careerops/rules');
+const { READER_VERSION } = require('./careerops/resume');
 const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 
 async function hagentCli(argv) {
@@ -914,15 +915,20 @@ function resumeFactsOf(row) {
 }
 const resumePagesOf = row => resumeFactsOf(row).pages;
 // A draft breaks the resume rules when it runs past one page or its summary is longer than four lines.
-const withFacts = row => { const facts = resumeFactsOf(row); return { ...row, resumePages: facts.pages, resumeSummaryLines: facts.summaryLines }; };
-const tooLong = row => ['ready_to_submit', 'action_required'].includes(row.status) && (row.resumePages > 1 || row.resumeSummaryLines > RESUME_LIMITS.summaryLines) && !String(row.error || '').startsWith(REWRITE_FAILED);
+// A Career Ops draft built before the resume reader was fixed can have scrambled experience: rebuild it from the stored resume text.
+const readerOutdated = row => {
+    if (!String(row.quality_notes || '').startsWith('{"source":"career-ops"')) return false;
+    try { return JSON.parse(row.quality_notes).reader !== READER_VERSION; } catch (_) { return false; }
+};
+const withFacts = row => { const facts = resumeFactsOf(row); return { ...row, resumePages: facts.pages, resumeSummaryLines: facts.summaryLines, outdatedReader: readerOutdated(row) }; };
+const tooLong = row => ['ready_to_submit', 'action_required'].includes(row.status) && (row.resumePages > 1 || row.resumeSummaryLines > RESUME_LIMITS.summaryLines || row.outdatedReader) && !String(row.error || '').startsWith(REWRITE_FAILED);
 const needsRewrite = row => tooLong(row) || (row.status === 'needs_review' && !String(row.error || '').startsWith(REWRITE_FAILED))
     || (['tailoring', 'verifying'].includes(row.status) && Date.now() - new Date(row.updated_at).getTime() > REWRITE_AFTER_MINUTES * 60000 && !String(row.error || '').startsWith(REWRITE_FAILED));
 
 async function autoRewriteApplications(username) {
     if (!careerOps) return;
     const rows = (await pool.query(
-        `SELECT id,status,error,updated_at,quality_score,tailored_resume,resume_version FROM job_applications
+        `SELECT id,status,error,updated_at,quality_score,tailored_resume,resume_version,quality_notes FROM job_applications
          WHERE username=$1 AND status IN ('needs_review','tailoring','verifying','ready_to_submit','action_required') ORDER BY updated_at LIMIT 80`, [username]
     )).rows.map(withFacts).filter(row => needsRewrite(row) && !applicationsBeingRewritten.has(row.id) && !applicationsBeingSynced.has(row.id));
     let rewritten = 0;
@@ -930,7 +936,7 @@ async function autoRewriteApplications(username) {
         applicationsBeingRewritten.add(row.id);
         try {
             const reason = ['ready_to_submit', 'action_required'].includes(row.status)
-                ? (row.resumePages > 1 ? `its resume ran to ${row.resumePages} pages and a resume must be one page` : `its summary ran to ${row.resumeSummaryLines} lines and a summary must be at most ${RESUME_LIMITS.summaryLines}`)
+                ? (row.resumePages > 1 ? `its resume ran to ${row.resumePages} pages and a resume must be one page` : row.resumeSummaryLines > RESUME_LIMITS.summaryLines ? `its summary ran to ${row.resumeSummaryLines} lines and a summary must be at most ${RESUME_LIMITS.summaryLines}` : 'Career Ops now reads your resume more accurately and rebuilt this draft from it')
                 : row.status === 'needs_review'
                     ? `Hagent's review${row.quality_score != null ? ` scored it ${row.quality_score}/100 and` : ''} asked for changes`
                     : 'Hagent had not finished it';
