@@ -6,7 +6,7 @@
 
 const { countTerm, escapeRegExp, extractKeywords } = require('./keywords');
 const { requirementEvidence } = require('./evidence');
-const { boldMetrics, earlierDates, earlierLine, headlineFor, headlineIsEvidenced, pickAchievements } = require('./recruiter');
+const { boldMetrics, earlierDates, earlierLine, headlineFor, ownTitleParts, headlineIsEvidenced, pickAchievements } = require('./recruiter');
 const { validateRewrite } = require('./rewrite');
 
 const { BULLET, DATE_RANGE, certificationLines, clean, headingType, joinWrapped, parseEntries, unwrapLines, wrapWidthOf } = require('./parse');
@@ -204,7 +204,7 @@ function tailorResume({ resumeText, job = {}, profile = {}, maxBullets = 6, rewr
 
     const gapKeywords = keywords.filter(item => !countTerm(`${resumeText}\n${profile.skills || ''}`, item.term)).map(item => item.term).slice(0, 10);
     // A headline under the name: the role, then the skill areas the job asks for, made only of words the resume evidences.
-    const headline = headlineFor({ job, experience: parsed.experience, evidenceText: `${resumeText}\n${profile.skills || ''}`, keywords });
+    const headline = headlineFor({ job, ownTitles: ownTitleParts(parsed.headerLines), experience: parsed.experience, evidenceText: `${resumeText}\n${profile.skills || ''}`, keywords });
     if (headline) changes.push(`Added a headline under your name, from your own wording: ${headline}.`);
     const tailored = {
         name: parsed.name || profile.full_name || '',
@@ -362,6 +362,6 @@ function buildCoverLetter({ resumeText, job = {}, profile = {}, requirements = [
 // Bumped whenever the way a resume or cover letter is built changes so that older drafts are out of date. Drafts record the
 // version that built them, and a draft built by an older version is rebuilt automatically.
 // 2: the resume reader was fixed.  3: headline, bold numbers, earlier experience, recruiter-style cover letter.
-const READER_VERSION = 4; // 4: PDFs with unspaced bullets and glued dates are read correctly
+const READER_VERSION = 5; // 5: the headline comes from the person's own title line
 
 module.exports = { READER_VERSION, readingIssues, DATE_RANGE, buildCoverLetter, parseResume, renderHtml, renderMarkdown, tailorResume, verifyTailoredFacts };

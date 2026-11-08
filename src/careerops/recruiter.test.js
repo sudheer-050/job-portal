@@ -7,7 +7,7 @@ const { optimizeForAts } = require('./ats');
 const { extractKeywords } = require('./keywords');
 const { evaluateOffer } = require('./evaluate');
 const { applyResumeRules, checkResumeRules, trimSummary } = require('./rules');
-const { boldMetrics, checkCoverLetter, earlierLine, headlineFor, headlineIsEvidenced, pickAchievements, recruiterVerdict } = require('./recruiter');
+const { boldMetrics, checkCoverLetter, earlierLine, headlineFor, ownTitleParts, headlineIsEvidenced, pickAchievements, recruiterVerdict } = require('./recruiter');
 const { buildCoverLetter, parseResume, renderHtml, renderMarkdown, tailorResume, verifyTailoredFacts } = require('./resume');
 
 const RESUME = `Jordan Rivera
@@ -224,4 +224,20 @@ test('bullets without a number become a question, never an invented figure', () 
     assert.equal(gaps.length, 1);
     assert.match(gaps[0].prompt, /^\[ADD METRIC\] Built dashboards for managers/);
     assert.ok(!/\d/.test(gaps[0].prompt));
+});
+
+test('the headline uses the part of your own title line that is closest to the job, and only skills your resume spells out', () => {
+    const NL = String.fromCharCode(10);
+    const text = ['Jordan Rivera', 'AI/ML Engineer & Analyst | Data Analyst | Business Analyst', 'jordan@example.com | Chicago, IL', 'SKILLS', 'Python, SQL, Tableau, GitHub Actions, machine learning',
+        'EXPERIENCE', 'Data Analytics Intern, Acme, Remote 2023 - 2024', '- Built 3 dashboards'].join(NL);
+    const parsed = parseResume(text);
+    const kw = extractKeywords('Business Analyst github python machine learning engineer', { limit: 12 });
+    const headline = headlineFor({ job: { title: 'Business Analyst' }, ownTitles: ownTitleParts(parsed.headerLines), experience: parsed.experience, evidenceText: text, keywords: kw });
+    assert.match(headline, /^Business Analyst \| /, 'the closest part of the title line');
+    assert.ok(!/github/i.test(headline), 'GitHub appears only inside "GitHub Actions"');
+    assert.ok(!/engineer/i.test(headline.split(' | ').slice(1).join(' ')), 'a bare job-title word is not a skill');
+    assert.ok(/Machine Learning|Python/.test(headline) && !/machine learning/.test(headline), headline);
+    const ml = headlineFor({ job: { title: 'Machine Learning Engineer' }, ownTitles: ownTitleParts(parsed.headerLines), experience: parsed.experience, evidenceText: text, keywords: kw });
+    assert.match(ml, /^AI\/ML Engineer & Analyst \| /);
+    assert.equal(headlineIsEvidenced(ml, text), true);
 });

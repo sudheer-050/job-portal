@@ -21,7 +21,7 @@ const titleCase = text => text.replace(/\b([a-z])/g, (_all, letter) => letter.to
 function displayForm(term, text) {
     const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const found = String(text || '').match(new RegExp(`(?<![A-Za-z0-9+#])${escaped}(?![A-Za-z0-9+#])`, 'i'));
-    return found ? found[0] : titleCase(term);
+    return found ? (found[0] === found[0].toLowerCase() && found[0].includes(' ') ? titleCase(found[0]) : found[0]) : titleCase(term);
 }
 
 /** The person's own most recent job title ("Data Analytics Intern" from "Data Analytics Intern | Unified Mentor"). */
@@ -37,18 +37,44 @@ function newestTitle(experience) {
  * The role is the job's title only when the resume itself contains that exact title; otherwise it is the person's own
  * newest title. Every skill is one the resume evidences. Returns '' when it cannot say anything true.
  */
-function headlineFor({ job = {}, experience = [], evidenceText = '', keywords = [] }) {
+/** The term appears in the text on its own: "GitHub" inside "GitHub Actions" does not count. */
+function standalone(term, text) {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    for (const match of String(text || '').matchAll(new RegExp(`(?<![A-Za-z0-9+#.])${escaped}(?![A-Za-z0-9+#])`, 'gi'))) {
+        const after = text.slice(match.index + match[0].length, match.index + match[0].length + 2);
+        if (!/^( [A-Z]|\.[a-z]|\/)/.test(after)) return true; // not the first word of a longer name, and not part of an address
+    }
+    return false;
+}
+
+/** The person's own title line under their name ("AI/ML Engineer & Analyst | Data Analyst | Business Analyst"), as its parts. */
+function ownTitleParts(headerLines = []) {
+    const line = headerLines.slice(1).find(text => /\s\|\s/.test(text) && !/[@\d]/.test(text) && text.length <= 140);
+    return line ? line.split(/\s+\|\s+/).map(part => part.trim()).filter(Boolean) : [];
+}
+
+const GENERIC = new Set(['engineer', 'analyst', 'developer', 'manager', 'intern', 'specialist', 'scientist', 'consultant']);
+const wordsOf = text => String(text || '').toLowerCase().match(/[a-z]{2,}/g) || [];
+
+function headlineFor({ job = {}, experience = [], evidenceText = '', keywords = [], ownTitles = [] }) {
     const words = String(job.title || '').replace(/[()|,/–—-]+/g, ' ').split(/\s+/).filter(Boolean);
     const role = words.filter(word => !LEVEL_WORDS.has(word.toLowerCase()) && word.length > 1).join(' ');
     const roleEvidenced = role && countTerm(evidenceText, role) > 0;
-    const heading = roleEvidenced ? titleCase(role) : newestTitle(experience);
+    // Best choice: the part of the person's own title line that is closest to the job; then the job's title if the resume has it;
+    // then their newest job title.
+    const jobWords = new Set(wordsOf(job.title));
+    const scored = ownTitles.map((part, index) => ({ part, index, score: wordsOf(part).filter(word => jobWords.has(word)).length }));
+    const ownBest = scored.sort((a, b) => b.score - a.score || a.index - b.index)[0];
+    const heading = ownBest ? ownBest.part : roleEvidenced ? titleCase(role) : newestTitle(experience);
     const taken = new Set(String(heading).toLowerCase().split(/\s+/));
     const preferred = keywords.filter(item => KNOWN_TERMS.has(item.term) || SKILL_PHRASES.includes(item.term));
     const skills = [];
     for (const { term } of [...preferred, ...keywords.filter(item => !preferred.includes(item))]) {
         if (skills.length >= 3) break;
-        if (!countTerm(evidenceText, term) || taken.has(term.toLowerCase()) || term.length < 2) continue;
+        if (!countTerm(evidenceText, term) || taken.has(term.toLowerCase()) || term.length < 2 || GENERIC.has(term.toLowerCase())) continue;
         const shown = displayForm(term, evidenceText);
+        // only a skill the resume spells out on its own (not "github" from "GitHub Actions") and not already in the heading
+        if (!standalone(term, evidenceText) || heading.toLowerCase().includes(term.toLowerCase())) continue;
         if (skills.some(existing => existing.toLowerCase() === shown.toLowerCase())) continue;
         skills.push(shown);
     }
@@ -176,5 +202,5 @@ function recruiterVerdict({ fit = 0, ats = 0, resumeRules = null, letterRules = 
 }
 
 module.exports = {
-    LETTER_CLICHES, LETTER_LIMITS, boldMetrics, checkCoverLetter, displayForm, earlierDates, earlierLine, metricGaps, headlineFor, headlineIsEvidenced, newestTitle, paragraphLines, pickAchievements, recruiterVerdict, wordCount,
+    LETTER_CLICHES, LETTER_LIMITS, boldMetrics, checkCoverLetter, displayForm, earlierDates, earlierLine, metricGaps, ownTitleParts, headlineFor, headlineIsEvidenced, newestTitle, paragraphLines, pickAchievements, recruiterVerdict, wordCount,
 };
