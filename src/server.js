@@ -1456,7 +1456,27 @@ app.use((error, _req, res, _next) => {
 });
 
 const server = app.listen(PORT, () => console.log(`Job Portal listening on port ${PORT}`));
+
+// Keeps drafts moving when nobody has the site open: every few minutes, for every user with unfinished applications, finish
+// the Hagent sync and rebuild any draft that is out of date. It only prepares drafts. Nothing is ever submitted to an employer.
+const BACKGROUND_MINUTES = Number(process.env.BACKGROUND_INTERVAL_MINUTES ?? 10);
+let backgroundRunning = false;
+async function backgroundTick() {
+    if (backgroundRunning) return;
+    backgroundRunning = true;
+    try {
+        const users = (await pool.query("SELECT DISTINCT username FROM job_applications WHERE status IN ('needs_review','tailoring','verifying','ready_to_submit','action_required')")).rows;
+        for (const { username } of users) {
+            await syncPendingApplications(username).catch(error => console.error('background sync failed:', error.message));
+            await autoRewriteApplications(username).catch(error => console.error('background rewrite failed:', error.message));
+        }
+    } catch (error) { console.error('background tick failed:', error.message); } finally { backgroundRunning = false; }
+}
+const backgroundTimer = BACKGROUND_MINUTES > 0 && process.env.NODE_ENV !== 'test' ? setInterval(backgroundTick, BACKGROUND_MINUTES * 60000) : null;
+if (backgroundTimer) { backgroundTimer.unref(); setTimeout(backgroundTick, 30000).unref(); }
+
 async function shutdown() {
+    if (backgroundTimer) clearInterval(backgroundTimer);
     jobService.stop();
     server.close(async () => { await pool.end(); process.exit(0); });
 }
