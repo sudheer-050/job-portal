@@ -17,6 +17,9 @@ resume.
 
 **Versions & updates:** [myhai.org/jobs/updates](https://myhai.org/jobs/updates)
 
+## Windows installer
+Download **Job-Portal-Setup-3.6.0.exe** from the [latest release](https://github.com/sudheer-050/job-portal/releases/latest). It needs [Docker Desktop](https://www.docker.com/products/docker-desktop/). The installer sets everything up, creates random secrets for your machine on first run, builds the app and opens it at http://localhost:3188. Use the Start menu entries to stop it or read its logs. Your data is kept in a Docker volume.
+
 ## What this is
 
 Job Portal is a private career-search command center. It brings job discovery, personalized matching, resume preparation, application tracking, follow-ups, and interview preparation into one workspace. Hagent can tailor application documents and independently review them for relevance, ATS readability, and truthfulness before an application proceeds.
